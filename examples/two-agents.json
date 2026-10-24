@@ -1,0 +1,30 @@
+[
+  {
+    "action_id": "demo-a-1",
+    "agent_id": "agent-notepad-a",
+    "source": "ufo2",
+    "kind": "type",
+    "target": {
+      "kind": "window",
+      "pid": 1001,
+      "window_id": 2001,
+      "session_id": "agent-notepad-a"
+    },
+    "parameters": {"content": "hello from agent A"},
+    "delivery_mode": "background"
+  },
+  {
+    "action_id": "demo-b-1",
+    "agent_id": "agent-notepad-b",
+    "source": "ui-tars",
+    "kind": "press",
+    "target": {
+      "kind": "window",
+      "pid": 1002,
+      "window_id": 2002,
+      "session_id": "agent-notepad-b"
+    },
+    "parameters": {"key": "enter"},
+    "delivery_mode": "background"
+  }
+]
