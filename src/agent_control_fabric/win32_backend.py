@@ -299,7 +299,13 @@ class Win32Backend:
             wcls = self._window_class(hwnd)
             use_sync = bool(params.get("sync")) or (wcls == "H-SMILE-FRAME")
             send_fn = user32.SendMessageW if use_sync else user32.PostMessageW
+            if use_sync:
+                # Sciter / custom-drawn windows require WM_MOUSEACTIVATE + WM_SETCURSOR + WM_MOUSEMOVE hover update
+                send_fn(hwnd, 0x0021, hwnd, (WM_LBUTTONDOWN << 16) | 1)
+                send_fn(hwnd, 0x0020, hwnd, (WM_MOUSEMOVE << 16) | 1)
             send_fn(hwnd, WM_MOUSEMOVE, 0, lp)
+            if use_sync:
+                send_fn(hwnd, 0x0020, hwnd, (WM_LBUTTONDOWN << 16) | 1)
             if button == "right":
                 send_fn(hwnd, WM_RBUTTONDOWN, mk, lp)
                 send_fn(hwnd, WM_RBUTTONUP, 0, lp)
