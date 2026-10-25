@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import time
 from concurrent.futures import ThreadPoolExecutor
 from threading import Lock
 from typing import Any, Optional
@@ -9,6 +10,7 @@ from typing import Any, Optional
 from .backends import Backend
 from .locks import ResourceLock
 from .models import Action, BackendResult
+from .retrospect import record_trajectory
 
 
 class ActionRouter:
@@ -45,26 +47,29 @@ class ActionRouter:
             return self._dispatch(action)
 
     def _dispatch(self, action: Action) -> BackendResult:
+        t0 = time.perf_counter()
         result = self.backend.execute(action)
-        if result.status != "executed" or not action.expected:
-            return result
-        if self.verifier is None:
-            result.details["verification"] = {
-                "status": "unknown",
-                "reason": "no verifier configured",
-            }
-            return result
-        verification = self.verifier.verify(action)
-        result.details["verification"] = {
-            "status": verification.status,
-            **verification.details,
-        }
-        if verification.status == "satisfied":
-            result.status = "verified"
-        elif verification.status == "unsatisfied":
-            result.status = "failed"
-        else:
-            result.status = "unknown"
+        if result.status == "executed" and action.expected:
+            if self.verifier is None:
+                result.details["verification"] = {
+                    "status": "unknown",
+                    "reason": "no verifier configured",
+                }
+            else:
+                verification = self.verifier.verify(action)
+                result.details["verification"] = {
+                    "status": verification.status,
+                    **verification.details,
+                }
+                if verification.status == "satisfied":
+                    result.status = "verified"
+                elif verification.status == "unsatisfied":
+                    result.status = "failed"
+                else:
+                    result.status = "unknown"
+        elapsed_ms = (time.perf_counter() - t0) * 1000.0
+        result.details["elapsed_ms"] = round(elapsed_ms, 2)
+        record_trajectory(action, result, elapsed_ms)
         return result
 
     def execute_many(self, actions: list[Action]) -> list[BackendResult]:

@@ -13,6 +13,8 @@ from pathlib import Path
 from agent_control_fabric.backends import CompositeBackend, DryRunBackend, FunctionBackend
 from agent_control_fabric.locks import LockError, ResourceLock, active_keys, peek
 from agent_control_fabric.models import Action, BackendResult, Target
+from agent_control_fabric.retrospect import record_trajectory, run_retrospect
+from agent_control_fabric.router import ActionRouter
 from agent_control_fabric.todesk import prepare_sanitized_rt_bundle
 from agent_control_fabric.win32_backend import Win32Backend
 
@@ -167,6 +169,52 @@ class TestToDeskSanitizedStaging(unittest.TestCase):
             self.assertIn("antigravity_rt_export.sha256.txt", names)
             self.assertIn("MANIFEST_SANITIZED.json", names)
             self.assertNotIn("antigravity_rt_export.password.txt", names)
+
+
+class TestRetrospectEngine(unittest.TestCase):
+    def setUp(self):
+        self.tmp = tempfile.mkdtemp(prefix="acf_test_retro_")
+        self.old_env = os.environ.get("ACF_LOCK_DIR")
+        os.environ["ACF_LOCK_DIR"] = self.tmp
+
+    def tearDown(self):
+        if self.old_env is not None:
+            os.environ["ACF_LOCK_DIR"] = self.old_env
+        else:
+            os.environ.pop("ACF_LOCK_DIR", None)
+        shutil.rmtree(self.tmp, ignore_errors=True)
+
+    def test_router_records_trajectory_and_retrospect_diagnoses(self):
+        router = ActionRouter(DryRunBackend())
+        act_ok = Action(
+            action_id="r-ok",
+            agent_id="agent-1",
+            source="test",
+            kind="click",
+            target=Target(kind="window", pid=10, window_id=20),
+            parameters={"x": 5, "y": 5},
+        )
+        router.execute(act_ok)
+
+        act_fail = Action(
+            action_id="r-fail",
+            agent_id="agent-1",
+            source="test",
+            kind="click",
+            target=Target(kind="window", pid=10, window_id=20),
+        )
+        record_trajectory(
+            act_fail,
+            BackendResult(status="failed", action_id="r-fail", backend="win32", details={"code": "point_outside_client"}),
+            elapsed_ms=12.5,
+        )
+
+        rep = run_retrospect(limit=50)
+        self.assertEqual(rep.total_actions, 2)
+        self.assertEqual(rep.succeeded, 1)
+        self.assertEqual(rep.failed, 1)
+        self.assertEqual(rep.failure_codes.get("point_outside_client"), 1)
+        self.assertTrue(any("point_outside_client" in f for f in rep.findings))
 
 
 if __name__ == "__main__":

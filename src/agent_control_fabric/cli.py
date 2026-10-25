@@ -13,6 +13,7 @@ from .backends import CompositeBackend, CuaDriverBackend, DryRunBackend
 from .locks import active_keys, peek
 from .models import Action, Target
 from .normalize import normalize_action
+from .retrospect import run_retrospect
 from .router import ActionRouter
 from .todesk import copy_files_to_clipboard, get_todesk_telemetry, prepare_sanitized_rt_bundle
 from .win32_backend import Win32Backend
@@ -77,8 +78,17 @@ def main(argv: list[str] | None = None) -> int:
     clip_parser = todesk_sub.add_parser("clipboard", help="Copy files into Windows CF_HDROP clipboard")
     clip_parser.add_argument("files", nargs="+", help="File paths to place on clipboard")
 
+    # retrospect
+    retro_parser = sub.add_parser("retrospect", help="Review action trajectories and generate self-iteration findings")
+    retro_parser.add_argument("--limit", type=int, default=200, help="Max recent trajectory records to analyze")
+    retro_parser.add_argument("--slow-ms", type=float, default=500.0, help="Latency threshold in ms for slow action warning")
+
     args = parser.parse_args(argv)
     try:
+        if args.command == "retrospect":
+            rep = run_retrospect(limit=args.limit, slow_threshold_ms=args.slow_ms)
+            print(json.dumps(rep.to_dict(), ensure_ascii=False, indent=2))
+            return 0
         if args.command == "normalize":
             action = normalize_action(
                 args.source,

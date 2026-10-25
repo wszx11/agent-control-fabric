@@ -1,11 +1,12 @@
 """Public package surface for agent-control-fabric."""
 
-__version__ = "0.2.0"
+__version__ = "0.3.0"
 
 from .backends import CompositeBackend, CuaDriverBackend, DryRunBackend, FunctionBackend
 from .locks import ResourceLock, active_keys, peek
 from .models import Action, ActionValidationError, BackendResult, Target
 from .normalize import AgentSAdapter, UFO2Adapter, UITarsAdapter, normalize_action
+from .retrospect import RetrospectReport, record_trajectory, run_retrospect
 from .router import ActionRouter
 from .todesk import copy_files_to_clipboard, get_todesk_telemetry, prepare_sanitized_rt_bundle
 from .verification import ObservationVerifier, StaticVerifier, VerificationResult
