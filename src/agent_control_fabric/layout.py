@@ -98,23 +98,24 @@ class UserInputGuard:
         if (
             IS_WINDOWS
             and user32 is not None
-            and kernel32 is not None
             and self.restore_foreground_on_drift
             and self.before
             and self.before.foreground_hwnd
+            and self.after.foreground_hwnd
             and self.after.foreground_hwnd != self.before.foreground_hwnd
-            and user32.IsWindow(self.before.foreground_hwnd)
+            and user32.IsWindow(self.after.foreground_hwnd)
         ):
-            cur_tid = kernel32.GetCurrentThreadId()
-            pid_dummy = wt.DWORD(0)
-            tgt_tid = user32.GetWindowThreadProcessId(self.before.foreground_hwnd, ctypes.byref(pid_dummy))
-            if tgt_tid and cur_tid != tgt_tid:
-                user32.AttachThreadInput(cur_tid, tgt_tid, True)
-            try:
-                user32.SetForegroundWindow(self.before.foreground_hwnd)
-            finally:
-                if tgt_tid and cur_tid != tgt_tid:
-                    user32.AttachThreadInput(cur_tid, tgt_tid, False)
+            # Yield activation back to the user's window without calling SetForegroundWindow:
+            # minimize the drifted background window briefly, then restore it with SW_SHOWNOACTIVATE(4) at HWND_BOTTOM.
+            drifted_hwnd = int(self.after.foreground_hwnd)
+            rc = wt.RECT()
+            user32.GetWindowRect(drifted_hwnd, ctypes.byref(rc))
+            w = max(300, int(rc.right - rc.left))
+            h = max(200, int(rc.bottom - rc.top))
+            user32.ShowWindow(drifted_hwnd, 6)  # SW_MINIMIZE
+            time.sleep(0.15)
+            user32.ShowWindow(drifted_hwnd, 4)  # SW_SHOWNOACTIVATE
+            user32.SetWindowPos(drifted_hwnd, HWND_BOTTOM, int(rc.left), int(rc.top), w, h, SWP_NOACTIVATE | SWP_SHOWWINDOW)
             self.after = sample_input_state()
         return False
 
