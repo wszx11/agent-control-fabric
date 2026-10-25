@@ -146,6 +146,8 @@ def normalize_action(
     agent_id: str = "agent-unknown",
     delivery_mode: str = "background",
     expected: tuple[Mapping[str, Any], ...] | list[Mapping[str, Any]] = (),
+    coord_space: str = "pixel",
+    window_size: tuple[int, int] | None = None,
 ) -> Action:
     """Normalize one UI-TARS, Agent S, UFO2, or generic action."""
 
@@ -158,20 +160,30 @@ def normalize_action(
     agent_id = str(params.pop("agent_id", agent_id))
     delivery_mode = str(params.pop("delivery_mode", delivery_mode))
     raw_expected = params.pop("expected", expected)
+    space = str(params.pop("coord_space", coord_space)).strip().lower()
+    win_size = params.pop("window_size", window_size)
+
+    def _scale_pt(pt: tuple[float, float] | None) -> tuple[float, float] | None:
+        if pt is None:
+            return None
+        if space == "normalized_1000" and win_size is not None and len(win_size) == 2:
+            w, h = float(win_size[0]), float(win_size[1])
+            return (round(pt[0] * w / 1000.0, 2), round(pt[1] * h / 1000.0, 2))
+        return pt
 
     if kind in {"click", "double_click", "right_click", "middle_click"}:
-        point = _point(_first(params, "point", "start", "start_point", "start_box", "box"))
+        point = _scale_pt(_point(_first(params, "point", "start", "start_point", "start_box", "box")))
         canonical: dict[str, Any] = {}
         if point:
             canonical.update(x=point[0], y=point[1])
-        for key in ("element_token", "element_index", "snapshot_id", "modifier"):
+        for key in ("element_token", "element_index", "snapshot_id", "modifier", "selector"):
             if key in params:
                 canonical[key] = params[key]
         if not canonical:
-            raise ActionValidationError(f"{kind} requires point, box, or element token")
+            raise ActionValidationError(f"{kind} requires point, box, selector, or element token")
     elif kind == "type":
         canonical = {"content": _text(_first(params, "content", "input_text", "text", "value"))}
-        for key in ("element_token", "element_index", "snapshot_id"):
+        for key in ("element_token", "element_index", "snapshot_id", "selector"):
             if key in params:
                 canonical[key] = params[key]
         if "delay_ms" in params:

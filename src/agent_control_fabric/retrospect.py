@@ -31,7 +31,7 @@ def record_trajectory(
     result: BackendResult,
     elapsed_ms: float,
 ) -> None:
-    """Append a single action execution trajectory record."""
+    """Append a single action execution trajectory record atomically."""
     entry = {
         "ts": time.time(),
         "action_id": action.action_id,
@@ -51,8 +51,12 @@ def record_trajectory(
     p = trajectory_path()
     try:
         p.parent.mkdir(parents=True, exist_ok=True)
-        with p.open("a", encoding="utf-8") as f:
-            f.write(json.dumps(entry, ensure_ascii=False) + "\n")
+        payload = (json.dumps(entry, ensure_ascii=False) + "\n").encode("utf-8")
+        fd = os.open(str(p), os.O_CREAT | os.O_WRONLY | os.O_APPEND)
+        try:
+            os.write(fd, payload)
+        finally:
+            os.close(fd)
     except OSError:
         pass
 

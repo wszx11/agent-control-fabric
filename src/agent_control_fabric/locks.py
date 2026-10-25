@@ -116,8 +116,11 @@ class ResourceLock:
             fd = os.open(self._path, os.O_CREAT | os.O_EXCL | os.O_WRONLY)
         except (FileExistsError, PermissionError):
             return False
-        with os.fdopen(fd, "w", encoding="utf-8") as f:
-            json.dump(asdict(rec), f, ensure_ascii=False)
+        payload = json.dumps(asdict(rec), ensure_ascii=False).encode("utf-8")
+        try:
+            os.write(fd, payload)
+        finally:
+            os.close(fd)
         return True
 
     def _audit(self, event: str, rec: Optional[LockRecord], extra: Optional[Dict[str, Any]] = None):
@@ -131,8 +134,13 @@ class ResourceLock:
         if extra:
             line.update(extra)
         try:
-            with open(os.path.join(lock_dir(), "events.jsonl"), "a", encoding="utf-8") as f:
-                f.write(json.dumps(line, ensure_ascii=False) + "\n")
+            p = os.path.join(lock_dir(), "events.jsonl")
+            payload = (json.dumps(line, ensure_ascii=False) + "\n").encode("utf-8")
+            fd = os.open(p, os.O_CREAT | os.O_WRONLY | os.O_APPEND)
+            try:
+                os.write(fd, payload)
+            finally:
+                os.close(fd)
         except OSError:
             pass
 
@@ -156,10 +164,16 @@ class ResourceLock:
                 return self
             cur = self._read()
             if cur is None:
+                # Guard against TOCTOU race while another process is mid-write:
+                # only delete corrupt/empty lock file if it has been stagnant > 1.0s.
                 try:
-                    os.remove(self._path)
+                    age = time.time() - os.path.getmtime(self._path)
+                    if age > 1.0:
+                        os.remove(self._path)
+                        continue
                 except OSError:
-                    pass
+                    continue
+                time.sleep(self.poll)
                 continue
             if cur.expired():
                 try:

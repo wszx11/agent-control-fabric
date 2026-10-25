@@ -1,4 +1,4 @@
-"""Command-line entry point for agent-control-fabric (v0.2.0)."""
+"""Command-line entry point for agent-control-fabric (v0.4.0)."""
 
 from __future__ import annotations
 
@@ -10,12 +10,16 @@ from pathlib import Path
 from typing import Any
 
 from .backends import CompositeBackend, CuaDriverBackend, DryRunBackend
+from .capture import capture_window_offscreen
+from .cloudpc import capture_cloudpc_offscreen, cloudpc_status, enqueue_cloudpc_a2a
+from .layout import PARKING_SLOTS, park_window_noactivate
 from .locks import active_keys, peek
 from .models import Action, Target
 from .normalize import normalize_action
 from .retrospect import run_retrospect
 from .router import ActionRouter
 from .todesk import copy_files_to_clipboard, get_todesk_telemetry, prepare_sanitized_rt_bundle
+from .uia_backend import UIABackend, observe_window_uia
 from .win32_backend import Win32Backend
 
 
@@ -38,7 +42,7 @@ def _result_json(result: Any) -> dict[str, Any]:
 
 
 def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(prog="acf", description="Agent Control Fabric CLI")
+    parser = argparse.ArgumentParser(prog="acf", description="Agent Control Fabric CLI (v0.4.0)")
     sub = parser.add_subparsers(dest="command", required=True)
 
     # normalize
@@ -50,11 +54,18 @@ def main(argv: list[str] | None = None) -> int:
     normalize_parser.add_argument("--agent-id", default="agent-cli")
     normalize_parser.add_argument("--action-id", default="action-cli")
     normalize_parser.add_argument("--delivery-mode", default="background")
+    normalize_parser.add_argument("--coord-space", choices=["pixel", "normalized_1000"], default="pixel")
+    normalize_parser.add_argument("--window-width", type=int, default=None)
+    normalize_parser.add_argument("--window-height", type=int, default=None)
 
     # run
     run_parser = sub.add_parser("run", help="Execute canonical actions against a backend")
     run_parser.add_argument("path")
-    run_parser.add_argument("--backend", choices=["win32", "cua-driver", "composite", "dry-run"], default="composite")
+    run_parser.add_argument(
+        "--backend",
+        choices=["uia", "win32", "cua-driver", "composite", "dry-run"],
+        default="composite",
+    )
     run_parser.add_argument("--dry-run", action="store_true", help="Alias for --backend dry-run")
     run_parser.add_argument("--driver", default="cua-driver", help="Cua Driver binary path")
     run_parser.add_argument("--allow-foreground", action="store_true", help="Allow foreground focus actions if explicitly required")
@@ -67,6 +78,32 @@ def main(argv: list[str] | None = None) -> int:
     locks_sub.add_parser("list", help="List active resource lock keys")
     peek_parser = locks_sub.add_parser("peek", help="Inspect a specific lock key")
     peek_parser.add_argument("key", help="Resource lock key")
+
+    # pc (local desktop non-intrusive control)
+    pc_parser = sub.add_parser("pc", help="Focus-safe local PC window management")
+    pc_sub = pc_parser.add_subparsers(dest="pc_cmd", required=True)
+    lw_p = pc_sub.add_parser("list-windows", help="List visible top-level windows")
+    lw_p.add_argument("--filter", default="", help="Title substring filter")
+    cap_p = pc_sub.add_parser("capture", help="Offscreen PrintWindow capture without raising window")
+    cap_p.add_argument("--window-id", type=int, required=True)
+    cap_p.add_argument("--out", required=True)
+    park_p = pc_sub.add_parser("park", help="Park window into non-intrusive strip via SWP_NOACTIVATE")
+    park_p.add_argument("--window-id", type=int, required=True)
+    park_p.add_argument("--slot", choices=list(PARKING_SLOTS.keys()), default="right-strip")
+    obs_p = pc_sub.add_parser("uia-observe", help="Inspect structured UIA elements for a window")
+    obs_p.add_argument("--pid", type=int, default=1)
+    obs_p.add_argument("--window-id", type=int, required=True)
+
+    # cloudpc (dual-track Cloud PC management)
+    cpc_parser = sub.add_parser("cloudpc", help="Dual-track Cloud PC management (A2A + offscreen ToDesk)")
+    cpc_sub = cpc_parser.add_subparsers(dest="cloudpc_cmd", required=True)
+    cpc_sub.add_parser("status", help="Inspect ToDesk + Cloud PC A2A queue status")
+    ccap_p = cpc_sub.add_parser("capture", help="Capture Cloud PC ToDesk screen offscreen")
+    ccap_p.add_argument("--out", required=True)
+    enq_p = cpc_sub.add_parser("enqueue", help="Enqueue bounded command to Cloud PC A2A inbox")
+    enq_p.add_argument("--task-id", required=True)
+    enq_p.add_argument("--cmd", required=True)
+    enq_p.add_argument("--timeout", type=int, default=120)
 
     # todesk
     todesk_parser = sub.add_parser("todesk", help="ToDesk remote desktop inspection and staging")
@@ -89,7 +126,13 @@ def main(argv: list[str] | None = None) -> int:
             rep = run_retrospect(limit=args.limit, slow_threshold_ms=args.slow_ms)
             print(json.dumps(rep.to_dict(), ensure_ascii=False, indent=2))
             return 0
+
         if args.command == "normalize":
+            wsize = (
+                (args.window_width, args.window_height)
+                if args.window_width and args.window_height
+                else None
+            )
             action = normalize_action(
                 args.source,
                 args.action,
@@ -97,6 +140,8 @@ def main(argv: list[str] | None = None) -> int:
                 action_id=args.action_id,
                 agent_id=args.agent_id,
                 delivery_mode=args.delivery_mode,
+                coord_space=args.coord_space,
+                window_size=wsize,
             )
             print(json.dumps(action.to_dict(), ensure_ascii=False, indent=2))
             return 0
@@ -109,6 +154,37 @@ def main(argv: list[str] | None = None) -> int:
             if args.locks_cmd == "peek":
                 rec = peek(args.key)
                 print(json.dumps(rec or {"status": "unlocked", "key": args.key}, ensure_ascii=False, indent=2))
+                return 0
+
+        if args.command == "pc":
+            if args.pc_cmd == "list-windows":
+                wins = [asdict(w) for w in Win32Backend.list_windows(args.filter)]
+                print(json.dumps({"windows": wins, "count": len(wins)}, ensure_ascii=False, indent=2))
+                return 0
+            if args.pc_cmd == "capture":
+                cap = capture_window_offscreen(args.window_id, args.out)
+                print(json.dumps(asdict(cap), ensure_ascii=False, indent=2))
+                return 0 if cap.ok else 1
+            if args.pc_cmd == "park":
+                res = park_window_noactivate(args.window_id, args.slot)
+                print(json.dumps(res, ensure_ascii=False, indent=2))
+                return 0 if res.get("ok") else 1
+            if args.pc_cmd == "uia-observe":
+                obs = observe_window_uia(Target(kind="window", pid=args.pid, window_id=args.window_id))
+                print(json.dumps(obs, ensure_ascii=False, indent=2))
+                return 0
+
+        if args.command == "cloudpc":
+            if args.cloudpc_cmd == "status":
+                print(json.dumps(cloudpc_status(), ensure_ascii=False, indent=2))
+                return 0
+            if args.cloudpc_cmd == "capture":
+                res = capture_cloudpc_offscreen(args.out)
+                print(json.dumps(res, ensure_ascii=False, indent=2))
+                return 0 if res.get("ok") else 1
+            if args.cloudpc_cmd == "enqueue":
+                res = enqueue_cloudpc_a2a(args.task_id, args.cmd, timeout_s=args.timeout)
+                print(json.dumps(res, ensure_ascii=False, indent=2))
                 return 0
 
         if args.command == "todesk":
@@ -131,14 +207,17 @@ def main(argv: list[str] | None = None) -> int:
 
             if backend_choice == "dry-run":
                 backend = DryRunBackend()
+            elif backend_choice == "uia":
+                backend = UIABackend()
             elif backend_choice == "win32":
                 backend = Win32Backend(allow_foreground=args.allow_foreground)
             elif backend_choice == "cua-driver":
                 backend = CuaDriverBackend(executable=args.driver, allow_foreground=args.allow_foreground)
-            else:  # composite
+            else:  # composite: Semantic UIA -> Win32 PostMessage/SendMessage -> Cua Driver
                 win32_b = Win32Backend(allow_foreground=args.allow_foreground)
+                uia_b = UIABackend(win32_fallback=win32_b)
                 cua_b = CuaDriverBackend(executable=args.driver, allow_foreground=args.allow_foreground)
-                backend = CompositeBackend([win32_b, cua_b])
+                backend = CompositeBackend([uia_b, win32_b, cua_b])
 
             router = ActionRouter(
                 backend,
