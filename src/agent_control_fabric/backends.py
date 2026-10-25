@@ -1,4 +1,4 @@
-"""Execution backends and the Cua Driver process boundary."""
+"""Execution backends and the Cua Driver / Win32 process boundaries."""
 
 from __future__ import annotations
 
@@ -9,6 +9,7 @@ from collections.abc import Callable
 from typing import Any, Protocol
 
 from .models import Action, BackendResult
+from .win32_backend import Win32Backend
 
 
 class Backend(Protocol):
@@ -142,7 +143,14 @@ class CuaDriverBackend:
                 backend=self.name,
                 details={"tool": "local_wait"},
             )
-        tool = self._TOOLS[action.kind]
+        tool = self._TOOLS.get(action.kind)
+        if not tool:
+            return BackendResult(
+                status="failed",
+                action_id=action.action_id,
+                backend=self.name,
+                details={"code": "unsupported_tool", "kind": action.kind},
+            )
         payload = self._payload(action)
         try:
             returncode, stdout, stderr = self._invoke(tool, payload)
@@ -188,4 +196,32 @@ class CuaDriverBackend:
             backend=self.name,
             details={"tool": tool, "driver": decoded},
             raw=decoded,
+        )
+
+
+class CompositeBackend:
+    """Tries backends in priority order (e.g. Win32 native -> Cua Driver fallback)."""
+
+    name = "composite"
+
+    def __init__(self, backends: list[Backend]):
+        if not backends:
+            raise ValueError("CompositeBackend requires at least one backend")
+        self.backends = list(backends)
+
+    def execute(self, action: Action) -> BackendResult:
+        first_result: BackendResult | None = None
+        for i, b in enumerate(self.backends):
+            res = b.execute(action)
+            if i == 0:
+                first_result = res
+            if res.status in ("executed", "verified"):
+                if i > 0 and first_result is not None:
+                    res.details["fallback_from"] = first_result.backend
+                return res
+        return first_result or BackendResult(
+            status="failed",
+            action_id=action.action_id,
+            backend=self.name,
+            details={"code": "all_backends_failed"},
         )
