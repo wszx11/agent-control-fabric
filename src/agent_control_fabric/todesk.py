@@ -105,13 +105,18 @@ def get_todesk_telemetry() -> ToDeskTelemetry:
     for w in windows:
         if w.class_name == "H-SMILE-FRAME":
             if w.title == "ToDesk":
-                main_window_id = w.hwnd
+                if w.visible or main_window_id is None:
+                    main_window_id = w.hwnd
             elif "windows-" in w.title.lower() or w.title.startswith("Windows-"):
-                remote_window_id = w.hwnd
-                is_connected = True
+                if w.visible or remote_window_id is None:
+                    remote_window_id = w.hwnd
+                if w.visible:
+                    is_connected = True
                 m = re.search(r"\(([\d\s]+)\)", w.title)
                 if m:
                     remote_target_id = m.group(1).replace(" ", "")
+                elif not remote_target_id and w.title:
+                    remote_target_id = w.title
 
     # Read config.ini if available for saved remote targets
     cfg_path = Path(r"D:\ToDesk\config.ini")
