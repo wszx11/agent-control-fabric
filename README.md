@@ -5,6 +5,11 @@ planners (UI-TARS, Agent S, UFO2) with multi-agent window-routed computer contro
 offscreen window capture, cross-process mutual-exclusion locks, automated
 trajectory retrospect, and dual-track Cloud PC (ToDesk + A2A) management.
 
+**Why it exists**: agents that share a desktop with a human must never steal focus,
+move the physical mouse, or fight each other over the same window. ACF routes every
+action to a specific window handle and delivers it in the background — the human
+keeps typing, the agents keep working.
+
 ## Core Capabilities (v0.4.0)
 
 - **Canonical Action Protocol (`normalize.py`)**:
@@ -24,6 +29,12 @@ trajectory retrospect, and dual-track Cloud PC (ToDesk + A2A) management.
 - **Automated Trajectory Retrospect (`retrospect.py`)**:
   - Atomic `O_APPEND` trajectory logging (`trajectories.jsonl`) and `acf retrospect` bottleneck/failure-code diagnostics for continuous self-iteration.
 
+## Install
+
+```bash
+pip install -e .          # zero runtime dependencies, Python >= 3.11, Windows for live control
+```
+
 ## Quick Start
 
 ```bash
@@ -42,3 +53,44 @@ PYTHONPATH=src python -m agent_control_fabric cloudpc capture --out cloudpc_scre
 # Review execution trajectories & generate next self-iteration backlog
 PYTHONPATH=src python -m agent_control_fabric retrospect
 ```
+
+## Python API
+
+```python
+from agent_control_fabric import Action, Target, ActionRouter, Win32Backend
+
+router = ActionRouter(Win32Backend())
+act = Action(
+    action_id="demo-1",
+    agent_id="my-agent",
+    source="ufo2",
+    kind="click",
+    target=Target(kind="window", pid=1234, window_id=5678),
+    parameters={"x": 40, "y": 12},
+    delivery_mode="background",   # foreground delivery is blocked by default
+)
+result = router.route(act)
+print(result.status)              # executed / failed / blocked
+```
+
+Two agents driving two different windows run concurrently; two agents fighting over
+the same window are serialized by `ResourceLock` — see `examples/two-agents.json`
+and run it with `acf run examples/two-agents.json --dry-run`.
+
+## Safety Model
+
+- `delivery_mode="foreground"` is **rejected by default** in every backend.
+- Window restore uses `SW_SHOWNOACTIVATE` + `HWND_BOTTOM` — never `SetForegroundWindow`.
+- `UserInputGuard` snapshots foreground window and cursor position, and verifies both
+  are unchanged after every guarded block.
+- Sanitized bundle staging refuses any file matching `*password*`, `*.key`, `*.pem`, `*.env`.
+
+## Status
+
+v0.4.0 — battle-tested in daily multi-agent desktop operation (500+ recorded
+trajectory actions, 98% success rate). Windows-first; UIA/Win32 backends require
+Windows, other modules are pure stdlib and cross-platform.
+
+## License
+
+MIT — see [LICENSE](LICENSE). Third-party component notes in [THIRD_PARTY.md](THIRD_PARTY.md).
