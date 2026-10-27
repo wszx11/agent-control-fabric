@@ -1,6 +1,6 @@
 """Dual-track Cloud PC controller (A2A command channel + ToDesk offscreen GUI).
 
-Manages the remote Cloud PC (e.g. ToDesk `[REMOTE_HOST]` / `[REMOTE_ID]`)
+Manages the remote Cloud PC (e.g. a ToDesk remote host)
 without ever blocking or interrupting the local user's mouse or keyboard:
 - Track A (Preferred): Enqueues commands into `cloudpc_a2a/inbox.jsonl` or
   delivers sanitized bundles via ToDesk File Transfer in the background.
@@ -12,6 +12,7 @@ without ever blocking or interrupting the local user's mouse or keyboard:
 from __future__ import annotations
 
 import json
+import os
 import time
 from dataclasses import asdict
 from datetime import datetime, timedelta, timezone
@@ -26,7 +27,7 @@ from .todesk import get_todesk_telemetry
 from .win32_backend import Win32Backend
 
 CST = timezone(timedelta(hours=8))
-DEFAULT_A2A_DIR = Path("[WORKSPACE]/hq/cloudpc_a2a")
+DEFAULT_A2A_DIR = Path(os.environ.get("ACF_A2A_DIR", str(Path.home() / ".acf" / "cloudpc_a2a")))
 
 
 def cloudpc_status(a2a_dir: str | Path = DEFAULT_A2A_DIR) -> Dict[str, Any]:

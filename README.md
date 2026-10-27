@@ -20,7 +20,7 @@ trajectory retrospect, and dual-track Cloud PC (ToDesk + A2A) management.
   - `park_window_noactivate` & `UserInputGuard`: Places agent windows into side strips via `SWP_NOACTIVATE` and verifies foreground/cursor preservation via `AttachThreadInput`.
 - **Dual-Track Cloud PC & ToDesk Control (`cloudpc.py`, `todesk.py`)**:
   - Track A: Sanitized RT bundle staging (rejecting `*.password.txt`) + Cloud PC A2A `inbox.jsonl` task dispatch.
-  - Track B: Offscreen `PrintWindow` capture of ToDesk remote desktop (`[REMOTE_HOST]`) + window-local background input routing.
+  - Track B: Offscreen `PrintWindow` capture of ToDesk remote desktop + window-local background input routing.
 - **Automated Trajectory Retrospect (`retrospect.py`)**:
   - Atomic `O_APPEND` trajectory logging (`trajectories.jsonl`) and `acf retrospect` bottleneck/failure-code diagnostics for continuous self-iteration.
 
