@@ -68,7 +68,7 @@ act = Action(
     parameters={"x": 40, "y": 12},
     delivery_mode="background",      # foreground is rejected by default
 )
-print(router.route(act).status)      # executed — your cursor never moved
+print(router.execute(act).status)    # executed — your cursor never moved
 
 # Or fully isolate agent windows on a separate desktop:
 with VirtualDesktop("acf-agents") as vd:

@@ -135,6 +135,25 @@ class WindowInfo:
     foreground: bool
 
 
+
+# --- User-document protection guard (v0.5.1) -------------------------------
+# Windows where a human is actively editing real content (Notepad/Word/Excel...)
+# must NEVER receive injected keys or clicks, even in background mode.
+import re as _re
+_USER_DOC_PAT = _re.compile(
+    r"\*\s*[^\r\n]*\.(txt|md|docx?|xlsx?|pptx?|csv|log|json|py|ps1|bat|ini|cfg)\s*[-—]\s*", _re.I)
+_INTERACTIVE_APPS = ("notepad", "word", "excel", "powerpnt", "wps", "notepad\+\+")
+
+def is_user_document_window(title: str, process_name: str = "") -> bool:
+    """True if the window looks like a human-edited document (typed keys would corrupt it)."""
+    if not title:
+        return False
+    if _USER_DOC_PAT.search(title):
+        return True
+    pl = (process_name or "").lower()
+    return any(a in pl or a in title.lower() for a in _INTERACTIVE_APPS if a != "notepad\+\+" or True)
+
+
 class Win32Backend:
     """Live Win32 background input routing backend."""
 
@@ -195,6 +214,13 @@ class Win32Backend:
         if not user32.GetClientRect(hwnd, ctypes.byref(rc)):
             return None
         return (rc.left, rc.top, rc.right, rc.bottom)
+
+    @staticmethod
+    def _window_title(hwnd: int) -> str:
+        n = user32.GetWindowTextLengthW(hwnd)
+        buf = ctypes.create_unicode_buffer(n + 1)
+        user32.GetWindowTextW(hwnd, buf, n + 1)
+        return buf.value
 
     @staticmethod
     def _window_class(hwnd: int) -> str:
@@ -285,6 +311,17 @@ class Win32Backend:
                 backend=self.name,
                 details={"code": "target_unavailable", "message": err, "hwnd": hwnd},
             )
+
+        if kind in ("press", "type", "click", "double_click", "right_click"):
+            title = self._window_title(hwnd)
+            if is_user_document_window(title):
+                return BackendResult(
+                    status="blocked",
+                    action_id=action.action_id,
+                    backend=self.name,
+                    details={"code": "user_document_protected",
+                             "message": f"window {hwnd} looks like a human-edited document; injected {kind} forbidden"},
+                )
 
         if kind in ("click", "double_click", "right_click", "middle_click"):
             restored = self._restore_if_iconic_focus_safe(hwnd)
