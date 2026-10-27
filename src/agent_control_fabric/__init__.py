@@ -19,6 +19,7 @@ from .router import ActionRouter
 from .todesk import copy_files_to_clipboard, get_todesk_telemetry, prepare_sanitized_rt_bundle
 from .uia_backend import UIABackend, observe_window_uia
 from .verification import ObservationVerifier, StaticVerifier, VerificationResult
+from .virtual_desktop import VirtualDesktop, VirtualDesktopError, run_on_virtual_desktop
 from .win32_backend import Win32Backend, WindowInfo
 
 __all__ = [
@@ -44,6 +45,9 @@ __all__ = [
     "UIABackend",
     "UITarsAdapter",
     "UserInputGuard",
+    "VirtualDesktop",
+    "VirtualDesktopError",
+    "run_on_virtual_desktop",
     "VerificationResult",
     "Win32Backend",
     "WindowInfo",
