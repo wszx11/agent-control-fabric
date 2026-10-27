@@ -204,11 +204,20 @@ class Win32Backend:
 
     @staticmethod
     def _restore_if_iconic_focus_safe(hwnd: int) -> bool:
-        """Restore a minimized window (-32000/-25600) via SW_SHOWNOACTIVATE without stealing focus."""
+        """Restore a minimized window (-32000/-25600) via SW_SHOWNOACTIVATE without stealing focus.
+
+        Adaptive poll instead of fixed 100ms sleep: un-minimizing typically completes
+        in 10-30ms, so we poll IsIconic every 10ms (max 150ms) and return early.
+        Saves ~70-90ms on every restore-then-click path (retrospect slow-action fix).
+        """
         if not user32.IsIconic(hwnd):
             return False
         user32.ShowWindow(hwnd, 4)  # SW_SHOWNOACTIVATE (never activates or steals foreground)
-        time.sleep(0.1)
+        deadline = time.perf_counter() + 0.15
+        while time.perf_counter() < deadline:
+            if not user32.IsIconic(hwnd):
+                break
+            time.sleep(0.01)
         return True
 
     def _check_target(self, hwnd: int) -> Optional[str]:
