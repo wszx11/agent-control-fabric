@@ -259,17 +259,20 @@ class AgentSAdapter:
 
 
 class UFO2Adapter:
-    source = "ufo2"
+    source = "semantic"
 
     def normalize(self, raw: Any, **kwargs: Any) -> Action:
         return normalize_action(self.source, raw, **kwargs)
 
 
 ADAPTERS = {
-    "ui-tars": UITarsAdapter(),
+    "ui-tars": UITarsAdapter(),  # legacy alias accepted
     "ui_tars": UITarsAdapter(),
-    "agent-s": AgentSAdapter(),
+    "agent-s": AgentSAdapter(),  # legacy alias accepted
     "agent_s": AgentSAdapter(),
-    "ufo2": UFO2Adapter(),
+    "ufo2": UFO2Adapter(),  # legacy alias accepted
     "ufo²": UFO2Adapter(),
+    "semantic": UFO2Adapter(),
+    "coordinate": UITarsAdapter(),
+    "dsl": AgentSAdapter(),
 }

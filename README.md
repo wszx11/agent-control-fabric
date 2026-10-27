@@ -6,7 +6,7 @@
 每次点击/按键/滚动都路由到具体窗口句柄后台投递——人类的前台、光标、键盘永远不被打扰。
 
 A lightweight, dependency-free, focus-safe execution fabric for multi-agent
-computer control on Windows. Agents plan (UI-TARS, Agent S, UFO² — plug in any),
+computer control on Windows. Agents plan (any visual or semantic planner — plug in yours),
 ACF executes: every click, keystroke, and scroll is routed to a specific window
 handle and delivered **in the background** — the human's foreground, cursor, and
 keyboard are never touched.
@@ -30,9 +30,9 @@ serialized by cross-process file leases.
 
 | Capability | Origin | What ACF kept / added |
 |---|---|---|
-| `normalized_1000` coordinate auto-scaling | **UI-TARS** | Full parser for `click(start_box='[..]')` serializations, scaled to any window's client pixels |
-| String-call action DSL + 15 action aliases | **Agent S** | AST-based parser, `left_click→click`, `input→type`, `sleep→wait`, … |
-| Semantic selectors `{"name","role"}` | **UFO²** | Routed straight into Windows UI Automation: `InvokePattern`, `ValuePattern`, `SelectionItemPattern`, `TogglePattern` |
+| Coordinate-based action dialect (normalized-1000 boxes) | common in visual GUI agents | Full parser for `click(start_box='[..]')` serializations, scaled to any window's client pixels |
+| String-call action DSL + alias dictionary | common in agent DSLs | AST-based parser, `left_click→click`, `input→type`, `sleep→wait`, … |
+| Semantic selectors `{"name","role"}` | accessibility-tree agents | Routed straight into Windows UI Automation: `InvokePattern`, `ValuePattern`, `SelectionItemPattern`, `TogglePattern` |
 | *(none of the above had this)* | **ACF** | Focus-safe Win32 backend: `PostMessageW`/`SendMessageW` with Sciter `H-SMILE-FRAME` hover handshake, per-monitor DPI aware |
 | *(none of the above had this)* | **ACF** | Cross-process `ResourceLock` (TOCTOU-hardened, dead-owner takeover) |
 | *(none of the above had this)* | **ACF** | Offscreen `PrintWindow(PW_RENDERFULLCONTENT)` capture + pure-stdlib PNG encoder |
@@ -42,7 +42,7 @@ serialized by cross-process file leases.
 ## What you get
 
 **中文（功能一览）**:
-- **融合三方言**: UI-TARS 千分坐标 / Agent-S 调用串别名 / UFO² 语义选择器 → 统一动作协议
+- **三方言统一**: 坐标框 / 调用串别名 / 语义选择器 → 一套动作协议，接哪个规划器都行
 - **多智能体·多"鼠标"**: 每个智能体的输入走自己的消息通道直达窗口，物理鼠键始终在人类手里
 - **窗口永不跳前台**: SW_SHOWNOACTIVATE 恢复 / SWP_NOACTIVATE 边条停靠 / 遮挡窗口离屏抓图
 - **真·虚拟桌面隔离**: agent 窗口建在独立 Windows 桌面对象上，人类桌面看不见它们
@@ -78,7 +78,7 @@ from agent_control_fabric.virtual_desktop import VirtualDesktop, run_on_virtual_
 
 router = ActionRouter(Win32Backend())
 act = Action(
-    action_id="demo-1", agent_id="agent-a", source="ufo2", kind="click",
+    action_id="demo-1", agent_id="agent-a", source="semantic", kind="click",
     target=Target(kind="window", pid=1234, window_id=5678),
     parameters={"x": 40, "y": 12},
     delivery_mode="background",      # foreground is rejected by default

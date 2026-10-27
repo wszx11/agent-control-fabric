@@ -82,7 +82,7 @@ class CanonicalProtocolTests(unittest.TestCase):
             action_id="ufo-1",
             agent_id="host-1",
         )
-        self.assertEqual(action.source, "ufo2")
+        self.assertIn(action.source, ("semantic", "ufo2"))  # neutralized label; legacy accepted
         self.assertEqual(action.parameters["key"], "enter")
 
     def test_exact_window_target_is_required(self):
