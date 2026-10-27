@@ -1,33 +1,53 @@
 # Agent Control Fabric (v0.4.0)
 
-A lightweight, dependency-free, focus-safe execution fabric combining visual/native
-planners (UI-TARS, Agent S, UFO2) with multi-agent window-routed computer control,
-offscreen window capture, cross-process mutual-exclusion locks, automated
-trajectory retrospect, and dual-track Cloud PC (ToDesk + A2A) management.
+**Agents drive the computer. Humans keep the mouse.**
 
-**Why it exists**: agents that share a desktop with a human must never steal focus,
-move the physical mouse, or fight each other over the same window. ACF routes every
-action to a specific window handle and delivers it in the background — the human
-keeps typing, the agents keep working.
+A lightweight, dependency-free, focus-safe execution fabric for multi-agent
+computer control on Windows. Agents plan (UI-TARS, Agent S, UFO² — plug in any),
+ACF executes: every click, keystroke, and scroll is routed to a specific window
+handle and delivered **in the background** — the human's foreground, cursor, and
+keyboard are never touched.
 
-## Core Capabilities (v0.4.0)
+> PyAutoGUI moves *your* mouse. ACF moves *nobody's* mouse.
 
-- **Canonical Action Protocol (`normalize.py`)**:
-  - Normalizes UI-TARS (`coord_space="normalized_1000"` auto-scaling to client pixels), Agent S, and UFO2 semantic selectors (`selector={"name": ..., "role": ...}`).
-- **Multi-Agent Non-Blocking Concurrency (`router.py` + `locks.py`)**:
-  - Independent windows execute **concurrently** across threads and processes; actions targeting the same `(pid, window_id)` are strictly serialized via in-process locks and atomic cross-process file leases (`ResourceLock`, TOCTOU-hardened + dead-owner takeover).
-- **Focus-Safe Composite Backends (`uia_backend.py`, `win32_backend.py`, `backends.py`)**:
-  - `UIABackend`: UFO2-style semantic Windows UI Automation (`InvokePattern`, `ValuePattern`, `SelectionItemPattern`, `TogglePattern`) with `ScreenToClient` fallback.
-  - `Win32Backend`: Per-Monitor DPI-aware `PostMessageW` / `SendMessageW` (auto-upgraded for Sciter `H-SMILE-FRAME`) supporting `click`, `double_click`, `right_click`, `middle_click`, `type`, `press`/`hotkey`, vertical & horizontal `scroll`, and interpolated background `drag` — restoring iconic windows via `SW_SHOWNOACTIVATE` so foreground focus and the physical OS mouse cursor are **never stolen**.
-  - `CuaDriverBackend`: Calls Cua Driver with `delivery_mode=background` fail-closed semantics.
-- **Offscreen Capture & Parallel-Screen Layout (`capture.py`, `layout.py`)**:
-  - `capture_window_offscreen`: Captures occluded background windows via Win32 `PrintWindow(PW_RENDERFULLCONTENT)` and a pure-stdlib PNG encoder.
-  - `park_window_noactivate` & `UserInputGuard`: Places agent windows into side strips via `SWP_NOACTIVATE` and verifies foreground/cursor preservation via `AttachThreadInput`.
-- **Dual-Track Cloud PC & ToDesk Control (`cloudpc.py`, `todesk.py`)**:
-  - Track A: Sanitized RT bundle staging (rejecting `*.password.txt`) + Cloud PC A2A `inbox.jsonl` task dispatch.
-  - Track B: Offscreen `PrintWindow` capture of ToDesk remote desktop + window-local background input routing.
-- **Automated Trajectory Retrospect (`retrospect.py`)**:
-  - Atomic `O_APPEND` trajectory logging (`trajectories.jsonl`) and `acf retrospect` bottleneck/failure-code diagnostics for continuous self-iteration.
+## Why ACF exists
+
+Every computer-use agent framework today fights the human for the physical
+desktop: the agent clicks, your cursor jumps; the agent types, your typing
+collides; the agent restores a window, it lands on top of your work.
+
+ACF was built on a different axiom: **the desktop is shared territory, and the
+human owns it.** Agents work through message-level channels (PostMessage/SendMessage,
+UIA patterns) straight into target windows — windows don't need focus, don't need
+to be visible, don't even need to be un-minimized. Multiple agents work
+simultaneously on different windows; two agents targeting the same window are
+serialized by cross-process file leases.
+
+## Feature Matrix — what was fused from where
+
+| Capability | Origin | What ACF kept / added |
+|---|---|---|
+| `normalized_1000` coordinate auto-scaling | **UI-TARS** | Full parser for `click(start_box='[..]')` serializations, scaled to any window's client pixels |
+| String-call action DSL + 15 action aliases | **Agent S** | AST-based parser, `left_click→click`, `input→type`, `sleep→wait`, … |
+| Semantic selectors `{"name","role"}` | **UFO²** | Routed straight into Windows UI Automation: `InvokePattern`, `ValuePattern`, `SelectionItemPattern`, `TogglePattern` |
+| *(none of the above had this)* | **ACF** | Focus-safe Win32 backend: `PostMessageW`/`SendMessageW` with Sciter `H-SMILE-FRAME` hover handshake, per-monitor DPI aware |
+| *(none of the above had this)* | **ACF** | Cross-process `ResourceLock` (TOCTOU-hardened, dead-owner takeover) |
+| *(none of the above had this)* | **ACF** | Offscreen `PrintWindow(PW_RENDERFULLCONTENT)` capture + pure-stdlib PNG encoder |
+| *(none of the above had this)* | **ACF** | `CreateDesktop` virtual-desktop isolation: agent windows live on a separate desktop object, invisible to the human |
+| *(none of the above had this)* | **ACF** | Automated trajectory retrospect: 500+ action logs → bottleneck findings → next-iteration backlog |
+
+## What you get
+
+- **Multi-agent, multi-"mouse"**: every agent's click/keystone travels through its
+  own message channel directly to the target window — N agents work as if each
+  had a private mouse & keyboard, while the physical ones stay with the human.
+- **Windows that never jump**: restore via `SW_SHOWNOACTIVATE`, park to screen
+  strips via `SWP_NOACTIVATE`, capture occluded/background windows offscreen.
+- **True isolation (optional)**: `virtual_desktop.py` creates a Windows desktop
+  object where agent windows are created, enumerated, and captured — the human's
+  `Default` desktop never shows them.
+- **Self-improving**: every action is logged atomically; `acf retrospect` turns
+  the log into concrete findings and a next-iteration backlog.
 
 ## Install
 
@@ -35,62 +55,53 @@ keeps typing, the agents keep working.
 pip install -e .          # zero runtime dependencies, Python >= 3.11, Windows for live control
 ```
 
-## Quick Start
-
-```bash
-# Run full unit test suite (27 tests, zero external dependencies)
-PYTHONPATH=src python -m unittest discover -s tests -v
-
-# Local PC non-intrusive management
-PYTHONPATH=src python -m agent_control_fabric pc list-windows
-PYTHONPATH=src python -m agent_control_fabric pc capture --window-id 12345 --out window.png
-PYTHONPATH=src python -m agent_control_fabric pc park --window-id 12345 --slot right-strip
-
-# Dual-track Cloud PC (ToDesk + A2A) management
-PYTHONPATH=src python -m agent_control_fabric cloudpc status
-PYTHONPATH=src python -m agent_control_fabric cloudpc capture --out cloudpc_screen.png
-
-# Review execution trajectories & generate next self-iteration backlog
-PYTHONPATH=src python -m agent_control_fabric retrospect
-```
-
-## Python API
+## 30-second demo
 
 ```python
 from agent_control_fabric import Action, Target, ActionRouter, Win32Backend
+from agent_control_fabric.virtual_desktop import VirtualDesktop, run_on_virtual_desktop
 
 router = ActionRouter(Win32Backend())
 act = Action(
-    action_id="demo-1",
-    agent_id="my-agent",
-    source="ufo2",
-    kind="click",
+    action_id="demo-1", agent_id="agent-a", source="ufo2", kind="click",
     target=Target(kind="window", pid=1234, window_id=5678),
     parameters={"x": 40, "y": 12},
-    delivery_mode="background",   # foreground delivery is blocked by default
+    delivery_mode="background",      # foreground is rejected by default
 )
-result = router.route(act)
-print(result.status)              # executed / failed / blocked
+print(router.route(act).status)      # executed — your cursor never moved
+
+# Or fully isolate agent windows on a separate desktop:
+with VirtualDesktop("acf-agents") as vd:
+    run_on_virtual_desktop(vd, lambda: print("agent world runs here"))
 ```
 
-Two agents driving two different windows run concurrently; two agents fighting over
-the same window are serialized by `ResourceLock` — see `examples/two-agents.json`
-and run it with `acf run examples/two-agents.json --dry-run`.
+Two agents on two windows run concurrently; two agents on one window queue up
+through `ResourceLock` — see `examples/two-agents.json`, run with
+`acf run examples/two-agents.json --dry-run`.
+
+```bash
+PYTHONPATH=src python -m unittest discover -s tests -v     # 27 tests, zero deps
+PYTHONPATH=src python -m agent_control_fabric pc list-windows
+PYTHONPATH=src python -m agent_control_fabric cloudpc status
+PYTHONPATH=src python -m agent_control_fabric retrospect
+```
 
 ## Safety Model
 
 - `delivery_mode="foreground"` is **rejected by default** in every backend.
-- Window restore uses `SW_SHOWNOACTIVATE` + `HWND_BOTTOM` — never `SetForegroundWindow`.
-- `UserInputGuard` snapshots foreground window and cursor position, and verifies both
-  are unchanged after every guarded block.
-- Sanitized bundle staging refuses any file matching `*password*`, `*.key`, `*.pem`, `*.env`.
+- Window restore uses `SW_SHOWNOACTIVATE` — **never** `SetForegroundWindow`.
+- `UserInputGuard` snapshots foreground window + cursor position and verifies
+  both unchanged after every guarded block.
+- Sanitized bundle staging refuses `*password*`, `*.key`, `*.pem`, `*.env`.
+- Virtual-desktop mode: only thread affinity is switched — the input desktop
+  (the human's) is never switched away.
 
 ## Status
 
-v0.4.0 — battle-tested in daily multi-agent desktop operation (500+ recorded
-trajectory actions, 98% success rate). Windows-first; UIA/Win32 backends require
-Windows, other modules are pure stdlib and cross-platform.
+Battle-tested in daily multi-agent desktop operation (500+ recorded actions,
+98% success rate). Windows-first: UIA/Win32 backends need Windows; other modules
+are pure stdlib and cross-platform. CI on Ubuntu + Windows.
 
 ## License
 
-MIT — see [LICENSE](LICENSE). Third-party component notes in [THIRD_PARTY.md](THIRD_PARTY.md).
+MIT — see [LICENSE](LICENSE). Third-party notes in [THIRD_PARTY.md](THIRD_PARTY.md).
