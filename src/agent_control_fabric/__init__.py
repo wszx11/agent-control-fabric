@@ -1,6 +1,6 @@
-"""Public package surface for agent-control-fabric (v0.4.0)."""
+"""Public package surface for agent-control-fabric (v0.5.1)."""
 
-__version__ = "0.4.0"
+__version__ = "0.5.1"
 
 from .backends import CompositeBackend, CuaDriverBackend, DryRunBackend, FunctionBackend
 from .capture import CaptureResult, capture_window_offscreen
@@ -16,7 +16,7 @@ from .models import Action, ActionValidationError, BackendResult, Target
 from .normalize import DslAdapter, SemanticAdapter, CoordinateAdapter, normalize_action
 from .retrospect import RetrospectReport, record_trajectory, run_retrospect
 from .router import ActionRouter
-from .todesk import copy_files_to_clipboard, get_todesk_telemetry, prepare_sanitized_rt_bundle
+from .todesk import copy_files_to_clipboard, get_todesk_telemetry, prepare_sanitized_bundle
 from .uia_backend import UIABackend, observe_window_uia
 from .verification import ObservationVerifier, StaticVerifier, VerificationResult
 from .virtual_desktop import VirtualDesktop, VirtualDesktopError, run_on_virtual_desktop
@@ -62,7 +62,7 @@ __all__ = [
     "observe_window_uia",
     "park_window_noactivate",
     "peek",
-    "prepare_sanitized_rt_bundle",
+    "prepare_sanitized_bundle",
     "record_trajectory",
     "route_cloudpc_window_action",
     "run_retrospect",

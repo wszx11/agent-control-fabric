@@ -1,4 +1,4 @@
-# Agent Control Fabric (v0.4.0)
+# Agent Control Fabric (v0.5.1)
 
 **Agents drive the computer. Humans keep the mouse.**
 

@@ -11,7 +11,7 @@ from pathlib import Path
 
 import unittest
 
-from agent_control_fabric import prepare_sanitized_rt_bundle
+from agent_control_fabric import prepare_sanitized_bundle
 from agent_control_fabric.todesk import compute_sha256, get_todesk_telemetry
 
 
@@ -38,7 +38,7 @@ class SanitizedBundleTests(unittest.TestCase):
 
     def test_bundle_excludes_plaintext_secrets(self):
         out = self.tmp / "bundle.zip"
-        report = prepare_sanitized_rt_bundle(self.tmp, out)
+        report = prepare_sanitized_bundle(self.tmp, out)
         self.assertTrue(out.exists())
         self.assertGreaterEqual(report["included_count"], 3)
         with zipfile.ZipFile(out) as zf:
@@ -51,14 +51,14 @@ class SanitizedBundleTests(unittest.TestCase):
 
     def test_bundle_sha256_matches(self):
         out = self.tmp / "bundle2.zip"
-        report = prepare_sanitized_rt_bundle(self.tmp, out)
+        report = prepare_sanitized_bundle(self.tmp, out)
         self.assertEqual(report["zip_sha256"], compute_sha256(out))
 
     def test_empty_dir_raises(self):
         empty = self.tmp / "empty"
         empty.mkdir()
         with self.assertRaises(ValueError):
-            prepare_sanitized_rt_bundle(empty, self.tmp / "should_not_exist.zip")
+            prepare_sanitized_bundle(empty, self.tmp / "should_not_exist.zip")
 
 
 if __name__ == "__main__":

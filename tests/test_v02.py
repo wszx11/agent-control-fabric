@@ -15,7 +15,7 @@ from agent_control_fabric.locks import LockError, ResourceLock, active_keys, pee
 from agent_control_fabric.models import Action, BackendResult, Target
 from agent_control_fabric.retrospect import record_trajectory, run_retrospect
 from agent_control_fabric.router import ActionRouter
-from agent_control_fabric.todesk import prepare_sanitized_rt_bundle
+from agent_control_fabric.todesk import prepare_sanitized_bundle
 from agent_control_fabric.win32_backend import Win32Backend
 
 
@@ -157,7 +157,7 @@ class TestToDeskSanitizedStaging(unittest.TestCase):
         (src / "antigravity_rt_export.password.txt").write_text("SUPER_SECRET_PLAINTEXT", encoding="utf-8")
 
         out_zip = Path(self.tmp) / "sanitized.zip"
-        res = prepare_sanitized_rt_bundle(src, out_zip)
+        res = prepare_sanitized_bundle(src, out_zip)
 
         self.assertEqual(res["included_count"], 2)
         self.assertEqual(res["rejected_passwords_count"], 1)

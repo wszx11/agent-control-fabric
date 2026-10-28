@@ -245,14 +245,14 @@ def normalize_action(
 
 
 class CoordinateAdapter:
-    source = "coordinate"  # legacy coordinate-dialect labels still accepted via ADAPTERS
+    source = "coordinate"
 
     def normalize(self, raw: Any, **kwargs: Any) -> Action:
         return normalize_action(self.source, raw, **kwargs)
 
 
 class DslAdapter:
-    source = "dsl"  # legacy DSL-dialect labels still accepted via ADAPTERS
+    source = "dsl"
 
     def normalize(self, raw: Any, **kwargs: Any) -> Action:
         return normalize_action(self.source, raw, **kwargs)
@@ -266,19 +266,13 @@ class SemanticAdapter:
 
 
 ADAPTERS = {
-    "ui-tars": CoordinateAdapter(),  # legacy alias accepted
-    "ui_tars": CoordinateAdapter(),
-    "agent-s": DslAdapter(),  # legacy alias accepted
-    "agent_s": DslAdapter(),
-    "ufo2": SemanticAdapter(),  # legacy alias accepted
-    "ufo²": SemanticAdapter(),
     "semantic": SemanticAdapter(),
     "coordinate": CoordinateAdapter(),
     "dsl": DslAdapter(),
 }
 
 
-# Backwards-compatible aliases (generic names; old spellings map through ADAPTERS)
-CoordinateAlias = CoordinateAdapter
-DslAlias = DslAdapter
-SemanticAlias = SemanticAdapter
+# Short aliases
+CoordinateAdapterAlias = CoordinateAdapter
+DslAdapterAlias = DslAdapter
+SemanticAdapterAlias = SemanticAdapter

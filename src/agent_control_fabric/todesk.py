@@ -1,6 +1,6 @@
-"""ToDesk remote desktop integration and sanitized payload staging.
+"""ToDesk remote desktop integration and payload bundle staging.
 
-Provides telemetry, window inspection, sanitized RT bundle staging,
+Provides telemetry, window inspection, sanitized bundle staging,
 and background interaction helpers for ToDesk (Windows remote control).
 
 Security discipline:
@@ -150,11 +150,11 @@ def compute_sha256(path: Path) -> str:
     return h.hexdigest()
 
 
-def prepare_sanitized_rt_bundle(
+def prepare_sanitized_bundle(
     source_dir: str | Path,
     output_zip: str | Path,
 ) -> Dict[str, Any]:
-    """Package encrypted RT containers into a sanitized ZIP while strictly
+    """Package encrypted containers into a sanitized ZIP while strictly
 
     rejecting any plaintext credentials or password files (*.password.txt).
     """

@@ -1,4 +1,4 @@
-"""Command-line entry point for agent-control-fabric (v0.4.0)."""
+"""Command-line entry point for agent-control-fabric (v0.5.1)."""
 
 from __future__ import annotations
 
@@ -18,7 +18,7 @@ from .models import Action, Target
 from .normalize import normalize_action
 from .retrospect import run_retrospect
 from .router import ActionRouter
-from .todesk import copy_files_to_clipboard, get_todesk_telemetry, prepare_sanitized_rt_bundle
+from .todesk import copy_files_to_clipboard, get_todesk_telemetry, prepare_sanitized_bundle
 from .uia_backend import UIABackend, observe_window_uia
 from .win32_backend import Win32Backend
 
@@ -42,7 +42,7 @@ def _result_json(result: Any) -> dict[str, Any]:
 
 
 def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(prog="acf", description="Agent Control Fabric CLI (v0.4.0)")
+    parser = argparse.ArgumentParser(prog="acf", description="Agent Control Fabric CLI (v0.5.1)")
     sub = parser.add_subparsers(dest="command", required=True)
 
     # normalize
@@ -109,7 +109,7 @@ def main(argv: list[str] | None = None) -> int:
     todesk_parser = sub.add_parser("todesk", help="ToDesk remote desktop inspection and staging")
     todesk_sub = todesk_parser.add_subparsers(dest="todesk_cmd", required=True)
     todesk_sub.add_parser("status", help="Get live ToDesk window and connection telemetry")
-    stage_parser = todesk_sub.add_parser("stage-rt", help="Stage sanitized RT bundle stripping plaintext passwords")
+    stage_parser = todesk_sub.add_parser("stage-bundle", help="Stage sanitized bundle stripping plaintext secrets")
     stage_parser.add_argument("--source", required=True, help="Directory containing .tar.enc and .sha256.txt")
     stage_parser.add_argument("--output", required=True, help="Output sanitized .zip path")
     clip_parser = todesk_sub.add_parser("clipboard", help="Copy files into Windows CF_HDROP clipboard")
@@ -193,7 +193,7 @@ def main(argv: list[str] | None = None) -> int:
                 print(json.dumps(asdict(telem), ensure_ascii=False, indent=2))
                 return 0
             if args.todesk_cmd == "stage-rt":
-                res = prepare_sanitized_rt_bundle(args.source, args.output)
+                res = prepare_sanitized_bundle(args.source, args.output)
                 print(json.dumps(res, ensure_ascii=False, indent=2))
                 return 0
             if args.todesk_cmd == "clipboard":
