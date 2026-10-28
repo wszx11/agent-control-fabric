@@ -2,7 +2,7 @@
 
 **Agents drive the computer. Humans keep the mouse.**
 
-**中文**: 智能体负责开电脑干活，人类独享鼠标。一个零依赖、焦点安全的多智能体电脑控制织物：
+**中文**: 智能体负责开电脑干活，人类独享鼠标。一个零依赖、焦点安全的多智能体电脑控制底座（execution fabric）：
 每次点击/按键/滚动都路由到具体窗口句柄后台投递——人类的前台、光标、键盘永远不被打扰。
 
 A lightweight, dependency-free, focus-safe execution fabric for multi-agent
