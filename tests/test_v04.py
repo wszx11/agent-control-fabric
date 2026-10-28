@@ -60,7 +60,7 @@ class TestV04Capabilities(unittest.TestCase):
         fg_act = Action(
             action_id="u-fg",
             agent_id="a1",
-            source="ufo2",
+            source="semantic",
             kind="click",
             target=Target(kind="window", pid=1, window_id=1),
             parameters={"selector": {"name": "OK"}},
@@ -72,7 +72,7 @@ class TestV04Capabilities(unittest.TestCase):
         no_sel = Action(
             action_id="u-nosel",
             agent_id="a1",
-            source="ufo2",
+            source="semantic",
             kind="click",
             target=Target(kind="window", pid=1, window_id=1),
             parameters={"x": 10, "y": 10},

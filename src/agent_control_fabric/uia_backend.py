@@ -1,4 +1,4 @@
-"""UFO2-style Windows UI Automation (UIA) semantic backend and state observer.
+"""Semantic Windows UI Automation (UIA) backend and state observer.
 
 Allows agents to address controls inside a specific `window_id` semantically
 by `name`, `automation_id`, or `control_type` instead of fragile pixel coords:
@@ -8,7 +8,7 @@ by `name`, `automation_id`, or `control_type` instead of fragile pixel coords:
    computes exact window-client coordinates from `BoundingRectangle` and routes
    via `Win32Backend` (`SendMessageW` / `PostMessageW`).
 3. Provides `observe_window_uia(target)` compatible with `ObservationVerifier`
-   for OpenAdapt-style deterministic post-action verification.
+   for deterministic post-action verification.
 """
 
 from __future__ import annotations

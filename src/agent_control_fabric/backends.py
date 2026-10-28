@@ -32,7 +32,7 @@ class DryRunBackend:
 
 
 class FunctionBackend:
-    """Small adapter for CDP, OpenAdapt, or another external service."""
+    """Small adapter for CDP or another external service."""
 
     def __init__(self, name: str, function: Callable[[Action], Any]):
         self.name = name
