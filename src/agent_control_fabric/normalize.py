@@ -14,6 +14,7 @@ _ALIAS = {
     "left_click": "click",
     "left_single": "click",
     "left_double": "double_click",
+    "left_double_click": "double_click",
     "doubleclick": "double_click",
     "right_single": "right_click",
     "middle_single": "middle_click",
