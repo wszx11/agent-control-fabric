@@ -192,7 +192,7 @@ def main(argv: list[str] | None = None) -> int:
                 telem = get_todesk_telemetry()
                 print(json.dumps(asdict(telem), ensure_ascii=False, indent=2))
                 return 0
-            if args.todesk_cmd == "stage-rt":
+            if args.todesk_cmd == "stage-bundle":
                 res = prepare_sanitized_bundle(args.source, args.output)
                 print(json.dumps(res, ensure_ascii=False, indent=2))
                 return 0
