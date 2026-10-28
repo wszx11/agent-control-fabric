@@ -82,7 +82,7 @@ class CanonicalProtocolTests(unittest.TestCase):
             action_id="semantic-1",
             agent_id="host-1",
         )
-        self.assertEqual(action.source, "semantic")  # neutralized label; legacy keys still route via ADAPTERS
+        self.assertEqual(action.source, "semantic")
         self.assertEqual(action.parameters["key"], "enter")
 
     def test_exact_window_target_is_required(self):
