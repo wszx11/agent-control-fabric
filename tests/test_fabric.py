@@ -4,14 +4,14 @@ import unittest
 
 from agent_control_fabric import (
     ActionRouter,
-    AgentSAdapter,
+    DslAdapter,
     BackendResult,
     DryRunBackend,
     ObservationVerifier,
     StaticVerifier,
     Target,
-    UFO2Adapter,
-    UITarsAdapter,
+    SemanticAdapter,
+    CoordinateAdapter,
     normalize_action,
 )
 from agent_control_fabric.backends import CuaDriverBackend
@@ -53,8 +53,8 @@ class CanonicalProtocolTests(unittest.TestCase):
     def setUp(self):
         self.target = Target(kind="window", pid=1234, window_id=5678)
 
-    def test_ui_tars_serialized_action_is_normalized(self):
-        action = UITarsAdapter().normalize(
+    def test_coordinate_dialect_serialized_action_is_normalized(self):
+        action = CoordinateAdapter().normalize(
             "click(start_box='[100, 200, 180, 260]')",
             target=self.target,
             action_id="ui-1",
@@ -65,18 +65,18 @@ class CanonicalProtocolTests(unittest.TestCase):
         self.assertEqual(action.parameters["y"], 230.0)
         self.assertEqual(action.delivery_mode, "background")
 
-    def test_agent_s_dictionary_alias_is_normalized(self):
-        action = AgentSAdapter().normalize(
+    def test_dsl_dictionary_alias_is_normalized(self):
+        action = DslAdapter().normalize(
             {"type": "type", "parameters": {"text": "hello"}},
             target=self.target,
-            action_id="agent-s-1",
+            action_id="dsl-1",
             agent_id="planner-1",
         )
         self.assertEqual(action.kind, "type")
         self.assertEqual(action.parameters, {"content": "hello"})
 
-    def test_ufo2_envelope_is_normalized(self):
-        action = UFO2Adapter().normalize(
+    def test_semantic_envelope_is_normalized(self):
+        action = SemanticAdapter().normalize(
             {"action": "press", "parameters": {"keyboard_key": "enter"}},
             target=self.target,
             action_id="ufo-1",

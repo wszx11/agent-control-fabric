@@ -2,7 +2,7 @@
   {
     "action_id": "demo-a-1",
     "agent_id": "agent-notepad-a",
-    "source": "ufo2",
+    "source": "semantic",
     "kind": "type",
     "target": {
       "kind": "window",
@@ -16,7 +16,7 @@
   {
     "action_id": "demo-b-1",
     "agent_id": "agent-notepad-b",
-    "source": "ui-tars",
+    "source": "coordinate",
     "kind": "press",
     "target": {
       "kind": "window",

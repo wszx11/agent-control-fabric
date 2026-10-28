@@ -12,8 +12,8 @@ from agent_control_fabric import (
     Action,
     Target,
     UIABackend,
-    UITarsAdapter,
-    UFO2Adapter,
+    CoordinateAdapter,
+    SemanticAdapter,
     UserInputGuard,
     enqueue_cloudpc_a2a,
     sample_input_state,
@@ -28,8 +28,8 @@ class TestV04Capabilities(unittest.TestCase):
     def tearDown(self):
         shutil.rmtree(self.tmp, ignore_errors=True)
 
-    def test_ui_tars_normalized_1000_scaling(self):
-        adapter = UITarsAdapter()
+    def test_coordinate_dialect_1000_scaling(self):
+        adapter = CoordinateAdapter()
         act = adapter.normalize(
             "click(start_box='[500, 250, 500, 250]')",
             target=Target(kind="window", pid=100, window_id=200),
@@ -41,8 +41,8 @@ class TestV04Capabilities(unittest.TestCase):
         self.assertEqual(act.parameters["x"], 600.0)
         self.assertEqual(act.parameters["y"], 200.0)
 
-    def test_ufo2_semantic_selector_normalization(self):
-        adapter = UFO2Adapter()
+    def test_semantic_selector_normalization(self):
+        adapter = SemanticAdapter()
         act = adapter.normalize(
             {
                 "command": "click",
@@ -50,7 +50,7 @@ class TestV04Capabilities(unittest.TestCase):
             },
             target=Target(kind="window", pid=100, window_id=200),
             action_id="sem-1",
-            agent_id="ufo2-agent",
+            agent_id="semantic-agent",
         )
         self.assertEqual(act.kind, "click")
         self.assertEqual(act.parameters["selector"]["name"], "文件传输")

@@ -13,7 +13,7 @@ from .cloudpc import (
 from .layout import InputSnapshot, PARKING_SLOTS, UserInputGuard, park_window_noactivate, sample_input_state
 from .locks import ResourceLock, active_keys, peek
 from .models import Action, ActionValidationError, BackendResult, Target
-from .normalize import AgentSAdapter, UFO2Adapter, UITarsAdapter, normalize_action
+from .normalize import DslAdapter, SemanticAdapter, CoordinateAdapter, normalize_action
 from .retrospect import RetrospectReport, record_trajectory, run_retrospect
 from .router import ActionRouter
 from .todesk import copy_files_to_clipboard, get_todesk_telemetry, prepare_sanitized_rt_bundle
@@ -27,7 +27,7 @@ __all__ = [
     "Action",
     "ActionRouter",
     "ActionValidationError",
-    "AgentSAdapter",
+    "DslAdapter",
     "BackendResult",
     "CaptureResult",
     "CompositeBackend",
@@ -41,9 +41,9 @@ __all__ = [
     "RetrospectReport",
     "StaticVerifier",
     "Target",
-    "UFO2Adapter",
+    "SemanticAdapter",
     "UIABackend",
-    "UITarsAdapter",
+    "CoordinateAdapter",
     "UserInputGuard",
     "VirtualDesktop",
     "VirtualDesktopError",

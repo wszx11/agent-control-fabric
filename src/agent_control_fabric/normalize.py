@@ -149,7 +149,7 @@ def normalize_action(
     coord_space: str = "pixel",
     window_size: tuple[int, int] | None = None,
 ) -> Action:
-    """Normalize one UI-TARS, Agent S, UFO2, or generic action."""
+    """Normalize one coordinate/DSL/semantic or generic planner action."""
 
     name, params = _unwrap(raw)
     if not name:
@@ -244,21 +244,21 @@ def normalize_action(
     )
 
 
-class UITarsAdapter:
-    source = "ui-tars"
+class CoordinateAdapter:
+    source = "coordinate"  # legacy coordinate-dialect labels still accepted via ADAPTERS
 
     def normalize(self, raw: Any, **kwargs: Any) -> Action:
         return normalize_action(self.source, raw, **kwargs)
 
 
-class AgentSAdapter:
-    source = "agent-s"
+class DslAdapter:
+    source = "dsl"  # legacy DSL-dialect labels still accepted via ADAPTERS
 
     def normalize(self, raw: Any, **kwargs: Any) -> Action:
         return normalize_action(self.source, raw, **kwargs)
 
 
-class UFO2Adapter:
+class SemanticAdapter:
     source = "semantic"
 
     def normalize(self, raw: Any, **kwargs: Any) -> Action:
@@ -266,13 +266,19 @@ class UFO2Adapter:
 
 
 ADAPTERS = {
-    "ui-tars": UITarsAdapter(),  # legacy alias accepted
-    "ui_tars": UITarsAdapter(),
-    "agent-s": AgentSAdapter(),  # legacy alias accepted
-    "agent_s": AgentSAdapter(),
-    "ufo2": UFO2Adapter(),  # legacy alias accepted
-    "ufo²": UFO2Adapter(),
-    "semantic": UFO2Adapter(),
-    "coordinate": UITarsAdapter(),
-    "dsl": AgentSAdapter(),
+    "ui-tars": CoordinateAdapter(),  # legacy alias accepted
+    "ui_tars": CoordinateAdapter(),
+    "agent-s": DslAdapter(),  # legacy alias accepted
+    "agent_s": DslAdapter(),
+    "ufo2": SemanticAdapter(),  # legacy alias accepted
+    "ufo²": SemanticAdapter(),
+    "semantic": SemanticAdapter(),
+    "coordinate": CoordinateAdapter(),
+    "dsl": DslAdapter(),
 }
+
+
+# Backwards-compatible aliases (generic names; old spellings map through ADAPTERS)
+CoordinateAlias = CoordinateAdapter
+DslAlias = DslAdapter
+SemanticAlias = SemanticAdapter
