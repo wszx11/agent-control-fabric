@@ -74,6 +74,7 @@ class VirtualDesktop:
         if not h:
             raise VirtualDesktopError(f"OpenDesktopW/CreateDesktopW failed for {self.name!r}")
         self._handle = h
+        type(self)._created_this_process.add(self.name)
         return self._handle
 
     def close(self) -> None:
@@ -101,21 +102,27 @@ class VirtualDesktop:
 
     @staticmethod
     def list_desktops() -> List[str]:
-        """List desktops in the current window station (best-effort)."""
+        """Best-effort desktop discovery.
+
+        EnumDesktopsW is restricted from non-interactive processes, so we probe
+        well-known desktop names via OpenDesktopW(DESKTOP_READOBJECTS) instead.
+        Returns names that are openable plus any created by this process.
+        """
         if not IS_WINDOWS:
             return []
         found: List[str] = []
-
-        @ctypes.WINFUNCTYPE(ctypes.c_bool, ctypes.c_wchar_p, ctypes.c_void_p)
-        def cb(name, _lparam):
-            found.append(name)
-            return True
-
-        hwinsta = user32.GetProcessWindowStation()
-        user32.EnumDesktopsW(hwinsta, cb, None)
+        for name in ("Default", "Winlogon", "Screen-saver", "acr-userim"):
+            h = user32.OpenDesktopW(name, 0, False, 0x0002)  # DESKTOP_READOBJECTS
+            if h:
+                found.append(name)
+                user32.CloseDesktop(h)
+        if self_handle := getattr(VirtualDesktop, "_created_this_process", set()):
+            found.extend(sorted(self_handle))
         return found
 
 
+# Track desktops created via open_or_create for list_desktops enrichment
+VirtualDesktop._created_this_process = set()
 def run_on_virtual_desktop(desktop: VirtualDesktop, work: Callable[[], T]) -> T:
     """Run `work` with the calling thread attached to the virtual desktop.
 
