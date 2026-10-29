@@ -107,7 +107,7 @@ through `ResourceLock` — see `examples/two-agents.json`, run with
 `acf run examples/two-agents.json --dry-run`.
 
 ```bash
-PYTHONPATH=src python -m unittest discover -s tests -v     # 95 tests, zero deps
+PYTHONPATH=src python -m unittest discover -s tests -v     # 102 tests, zero deps
 PYTHONPATH=src python -m agent_control_fabric pc list-windows
 PYTHONPATH=src python -m agent_control_fabric cloudpc status
 PYTHONPATH=src python -m agent_control_fabric retrospect
@@ -133,7 +133,7 @@ PYTHONPATH=src python -m agent_control_fabric retrospect
 | Path | Contents |
 |---|---|
 | `src/agent_control_fabric/` | All runtime code: `models` / `normalize` / `router` / `backends` / `win32_backend` / `uia_backend` / `capture` / `layout` / `locks` / `virtual_desktop` / `todesk` / `cloudpc` / `retrospect` / `verification` / `cli` |
-| `tests/` | 95 unit tests, stdlib `unittest`, no fixtures outside the process |
+| `tests/` | 102 unit tests, stdlib `unittest`, no fixtures outside the process |
 | `examples/two-agents.json` | Minimal two-agent concurrent-run example (`acf run ... --dry-run`) |
 | `RETROSPECT_BACKLOG.json` | Live output of `acf retrospect` + the next-iteration backlog |
 | `THIRD_PARTY.md` | Third-party integration boundaries (no vendored upstream code) |
@@ -149,7 +149,10 @@ SetForegroundWindow；UserInputGuard 校验前台与光标零位移；人类编�
 - Window restore uses `SW_SHOWNOACTIVATE` — **never** `SetForegroundWindow`.
 - `UserInputGuard` snapshots foreground window + cursor position and verifies
   both unchanged after every guarded block.
-- Sanitized bundle staging refuses `*password*`, `*.key`, `*.pem`, `*.env`.
+- Sanitized bundle staging refuses `*password*`, `*.key*`, `*.pem`, `*.env`.
+- A2A mailbox ops are **deny-by-default** (`a2a_boundary.py`): only
+  `branch_status_probe` is allowed, so a task asking for `run_script` is refused
+  with `unknown_op` instead of being executed.
 - Virtual-desktop mode: only thread affinity is switched — the input desktop
   (the human's) is never switched away.
 
@@ -158,7 +161,7 @@ SetForegroundWindow；UserInputGuard 校验前台与光标零位移；人类编�
 Battle-tested in daily multi-agent desktop operation — the trajectory log holds
 2,200+ recorded actions all-time; the most recent 200-action window ran at
 **92.9% success, ~9 ms average latency, 0 focus-contention flags**
-(regenerate anytime with `acf retrospect`). 95 unit tests, zero deps.
+(regenerate anytime with `acf retrospect`). 102 unit tests, zero deps.
 Windows-first: UIA/Win32 backends need Windows; other modules are pure stdlib
 and cross-platform. CI runs the suite on Ubuntu + Windows (see Known limitations).
 
