@@ -9,27 +9,45 @@ backend look broken when the fixture is what's broken.
 from __future__ import annotations
 
 import ctypes
-import ctypes.wintypes as wt
 import sys
 import threading
 import time
 import unittest
+from pathlib import Path
 
-REPO = r"D:/ai gongzuoqu/zonzhang-office/00-总指挥办公室/tools/agent-control-fabric"
-sys.path.insert(0, REPO + "/src")
+# Resolve the package from this file instead of an absolute path, so the suite is
+# portable across machines and CI images.
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
-from agent_control_fabric import Action, Target, Win32Backend
+from agent_control_fabric import Action, Target, Win32Backend  # noqa: E402
 
-user32 = ctypes.windll.user32
-kernel32 = ctypes.windll.kernel32
+IS_WINDOWS = sys.platform == "win32"
 
-WNDPROC = ctypes.WINFUNCTYPE(ctypes.c_longlong, wt.HWND, wt.UINT, wt.WPARAM, wt.LPARAM)
+# ctypes.wintypes / WINFUNCTYPE / windll only exist on Windows; mirror the library
+# convention (import guarded, handle set to None off-Windows) so discovery does
+# not explode on other platforms.
+if IS_WINDOWS:
+    try:
+        import ctypes.wintypes as wt
+
+        user32 = ctypes.windll.user32
+        kernel32 = ctypes.windll.kernel32
+    except (ImportError, AttributeError, OSError):
+        IS_WINDOWS = False
+
+if not IS_WINDOWS:
+    wt = None  # type: ignore[assignment]
+    user32 = None
+    kernel32 = None
+
 WS_OVERLAPPEDWINDOW, WS_VISIBLE, WM_QUIT = 0x00CF0000, 0x10000000, 0x0012
 
-user32.DefWindowProcW.restype = ctypes.c_longlong
-user32.DefWindowProcW.argtypes = [wt.HWND, wt.UINT, wt.WPARAM, wt.LPARAM]
-user32.UnregisterClassW.argtypes = [wt.LPCWSTR, wt.HINSTANCE]
-user32.PostThreadMessageW.argtypes = [wt.DWORD, wt.UINT, wt.WPARAM, wt.LPARAM]
+if IS_WINDOWS:
+    WNDPROC = ctypes.WINFUNCTYPE(ctypes.c_longlong, wt.HWND, wt.UINT, wt.WPARAM, wt.LPARAM)
+    user32.DefWindowProcW.restype = ctypes.c_longlong
+    user32.DefWindowProcW.argtypes = [wt.HWND, wt.UINT, wt.WPARAM, wt.LPARAM]
+    user32.UnregisterClassW.argtypes = [wt.LPCWSTR, wt.HINSTANCE]
+    user32.PostThreadMessageW.argtypes = [wt.DWORD, wt.UINT, wt.WPARAM, wt.LPARAM]
 
 
 class _PumpedWindow(threading.Thread):
@@ -88,7 +106,7 @@ class _PumpedWindow(threading.Thread):
         self.join(timeout=3)
 
 
-@unittest.skipUnless(sys.platform == "win32", "win32 backend requires Windows")
+@unittest.skipUnless(IS_WINDOWS, "win32 backend requires Windows")
 class Win32UntestedKindsTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):

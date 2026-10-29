@@ -6,9 +6,9 @@ from __future__ import annotations
 
 import sys
 import unittest
+from pathlib import Path
 
-REPO = r"D:/ai gongzuoqu/zonzhang-office/00-总指挥办公室/tools/agent-control-fabric"
-sys.path.insert(0, REPO + "/src")
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 from agent_control_fabric import (  # noqa: E402
     Action, ActionValidationError, BackendResult, CompositeBackend, DryRunBackend,
