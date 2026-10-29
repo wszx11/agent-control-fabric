@@ -167,10 +167,13 @@ and cross-platform. CI runs the suite on Ubuntu + Windows (see Known limitations
 - Win32/UIA backends, offscreen capture and virtual-desktop isolation are
   Windows-only; on other OSes the package imports but window-touching calls
   refuse to run.
-- A few test files were authored on a Windows host and still assume one
-  (hardcoded absolute paths, `ctypes.windll` at import time), so the **Ubuntu CI
-  leg is currently red** while the Windows leg passes — platform guards are the
-  top item in `RETROSPECT_BACKLOG.json`.
+- A few test files were authored on a Windows host and used absolute paths plus
+  module-level `ctypes.windll`, so collection could fail off-Windows. Those are
+  now resolved from `__file__` and the Windows ctypes surface is platform-guarded.
+  `scripts/check_offwindows_imports.py` statically enforces that invariant
+  (`0 violations` at HEAD). **Not yet proven by a real Ubuntu run** — this host
+  cannot emulate a genuine posix build, so the CI leg stays unverified until it
+  actually executes.
 
 ## License
 
