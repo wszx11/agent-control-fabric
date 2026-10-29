@@ -12,6 +12,7 @@ coverage.xml
 htmlcov/
 dist/
 build/
+uv.lock
 *.log
 run-artifacts/
 secrets/
