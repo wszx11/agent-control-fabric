@@ -45,6 +45,32 @@ class CloudpcA2ATests(unittest.TestCase):
         st = cloudpc_status(a2a_dir=self.tmp / "nope")
         self.assertIsInstance(st, dict)
 
+    def test_resolve_cua_driver_path(self):
+        from agent_control_fabric.cloudpc import resolve_cua_driver_path
+        # Nonexistent custom path should fallback
+        res = resolve_cua_driver_path("C:/fake/path/to/cua-driver.exe")
+        self.assertIsInstance(res, str)
+        self.assertTrue(len(res) > 0)
+
+    def test_peek_cloudpc_screen_unsupported_mode(self):
+        from agent_control_fabric.cloudpc import peek_cloudpc_screen
+        res = peek_cloudpc_screen(self.tmp / "test.png", mode="invalid_mode")
+        self.assertFalse(res["ok"])
+        self.assertIn("unsupported", res.get("error", ""))
+
+    def test_route_cloudpc_window_action_dry_run(self):
+        from agent_control_fabric.cloudpc import route_cloudpc_window_action
+        target_win = {"pid": 1234, "window_id": 5678, "title": "MockWindow"}
+        res = route_cloudpc_window_action(
+            kind="click",
+            parameters={"point": [100, 100]},
+            backend_mode="dry-run",
+            target_window=target_win,
+        )
+        self.assertTrue(res["ok"])
+        self.assertEqual(res["backend"], "dry-run")
+        self.assertEqual(res["target"]["window_id"], 5678)
+
 
 if __name__ == "__main__":
     unittest.main()

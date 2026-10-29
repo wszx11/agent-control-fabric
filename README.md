@@ -1,12 +1,13 @@
-# Agent Control Fabric (v0.5.1)
+# Agent Control Fabric (ACF) (v0.5.1)
 
 **Agents drive the computer. Humans keep the mouse.**
 
-**中文**: 智能体负责开电脑干活，人类独享鼠标。一个零依赖、焦点安全的多智能体电脑控制底座（execution fabric）：
+**中文**: 智能体负责开电脑干活，人类独享鼠标。ACF 不是又一套 GUI 自动化脚本库，
+而是一个零依赖、焦点安全的**多智能体电脑控制底座**（execution fabric）：
 每次点击/按键/滚动都路由到具体窗口句柄后台投递——人类的前台、光标、键盘永远不被打扰。
 
-A lightweight, dependency-free, focus-safe execution fabric for multi-agent
-computer control on Windows. Agents plan (any visual or semantic planner — plug in yours),
+A lightweight, dependency-free, focus-safe **control base for multi-agent computer
+use** on Windows. Agents plan (any visual or semantic planner — plug in yours),
 ACF executes: every click, keystroke, and scroll is routed to a specific window
 handle and delivered **in the background** — the human's foreground, cursor, and
 keyboard are never touched.
@@ -37,7 +38,7 @@ serialized by cross-process file leases.
 | *(none of the above had this)* | **ACF** | Cross-process `ResourceLock` (TOCTOU-hardened, dead-owner takeover) |
 | *(none of the above had this)* | **ACF** | Offscreen `PrintWindow(PW_RENDERFULLCONTENT)` capture + pure-stdlib PNG encoder |
 | *(none of the above had this)* | **ACF** | `CreateDesktop` virtual-desktop isolation: agent windows live on a separate desktop object, invisible to the human |
-| *(none of the above had this)* | **ACF** | Automated trajectory retrospect: 500+ action logs → bottleneck findings → next-iteration backlog |
+| *(none of the above had this)* | **ACF** | Automated trajectory retrospect: action logs → bottleneck findings → next-iteration backlog |
 
 ## What you get
 
@@ -60,10 +61,21 @@ serialized by cross-process file leases.
 - **Self-improving**: every action is logged atomically; `acf retrospect` turns
   the log into concrete findings and a next-iteration backlog.
 
+## Requirements
+
+- **Windows 10/11** for live control — the Win32/UIA backends, offscreen capture
+  and virtual-desktop isolation are Windows-only by design.
+- **Python >= 3.11**, zero runtime dependencies (pure stdlib).
+- Off-Windows you can still use the dry-run backend, action normalization,
+  cross-process locks, and trajectory retrospect — window-touching backends
+  refuse to load on non-Windows hosts.
+
 ## Install
 
 ```bash
-pip install -e .          # zero runtime dependencies, Python >= 3.11, Windows for live control
+git clone https://github.com/wszx11/agent-control-fabric.git
+cd agent-control-fabric
+pip install -e .          # zero runtime dependencies
 ```
 
 ## 30-second demo
@@ -95,11 +107,36 @@ through `ResourceLock` — see `examples/two-agents.json`, run with
 `acf run examples/two-agents.json --dry-run`.
 
 ```bash
-PYTHONPATH=src python -m unittest discover -s tests -v     # 27 tests, zero deps
+PYTHONPATH=src python -m unittest discover -s tests -v     # 90 tests, zero deps
 PYTHONPATH=src python -m agent_control_fabric pc list-windows
 PYTHONPATH=src python -m agent_control_fabric cloudpc status
 PYTHONPATH=src python -m agent_control_fabric retrospect
 ```
+
+## CLI overview
+
+`pip install -e .` exposes everything as the `acf` command (or run via
+`python -m agent_control_fabric`):
+
+| Command | What it does |
+|---|---|
+| `acf normalize` | Normalize third-party actions (coordinate / DSL-string / semantic) into the canonical format |
+| `acf run FILE` | Execute a canonical action file against `uia` / `win32` / `cua-driver` / `composite` / `dry-run` backends |
+| `acf locks list` / `acf locks peek KEY` | Inspect cross-process resource locks |
+| `acf pc list-windows` / `capture` / `park` / `uia-observe` | Focus-safe local window management: enumerate, offscreen-capture, park to screen strips, UIA tree inspect |
+| `acf cloudpc status` / `capture` / `enqueue` | Cloud PC dual-track: A2A command inbox + offscreen ToDesk screen capture |
+| `acf todesk status` / `stage-bundle` / `clipboard` | ToDesk telemetry, sanitized bundle staging (secrets stripped), CF_HDROP clipboard staging |
+| `acf retrospect` | Analyze action trajectories + lock audit events into findings and a next-iteration backlog |
+
+## Repo layout
+
+| Path | Contents |
+|---|---|
+| `src/agent_control_fabric/` | All runtime code: `models` / `normalize` / `router` / `backends` / `win32_backend` / `uia_backend` / `capture` / `layout` / `locks` / `virtual_desktop` / `todesk` / `cloudpc` / `retrospect` / `verification` / `cli` |
+| `tests/` | 90 unit tests, stdlib `unittest`, no fixtures outside the process |
+| `examples/two-agents.json` | Minimal two-agent concurrent-run example (`acf run ... --dry-run`) |
+| `RETROSPECT_BACKLOG.json` | Live output of `acf retrospect` + the next-iteration backlog |
+| `THIRD_PARTY.md` | Third-party integration boundaries (no vendored upstream code) |
 
 ## Safety Model
 
@@ -107,7 +144,8 @@ PYTHONPATH=src python -m agent_control_fabric retrospect
 SetForegroundWindow；UserInputGuard 校验前台与光标零位移；人类编辑中的文档窗口（Notepad/Word…）
 一律禁止注入按键与点击；虚拟桌面只切线程亲和，绝不切走人类的输入桌面。
 
-- `delivery_mode="foreground"` is **rejected by default** in every backend.
+- `delivery_mode="foreground"` is **rejected by default** in every backend
+  (`foreground_not_allowed`); enabling it requires explicit backend configuration.
 - Window restore uses `SW_SHOWNOACTIVATE` — **never** `SetForegroundWindow`.
 - `UserInputGuard` snapshots foreground window + cursor position and verifies
   both unchanged after every guarded block.
@@ -117,9 +155,22 @@ SetForegroundWindow；UserInputGuard 校验前台与光标零位移；人类编�
 
 ## Status
 
-Battle-tested in daily multi-agent desktop operation (500+ recorded actions,
-98% success rate). Windows-first: UIA/Win32 backends need Windows; other modules
-are pure stdlib and cross-platform. CI on Ubuntu + Windows.
+Battle-tested in daily multi-agent desktop operation — the trajectory log holds
+2,200+ recorded actions all-time; the most recent 200-action window ran at
+**92.9% success, ~9 ms average latency, 0 focus-contention flags**
+(regenerate anytime with `acf retrospect`). 90 unit tests, zero deps.
+Windows-first: UIA/Win32 backends need Windows; other modules are pure stdlib
+and cross-platform. CI runs the suite on Ubuntu + Windows (see Known limitations).
+
+## Known limitations
+
+- Win32/UIA backends, offscreen capture and virtual-desktop isolation are
+  Windows-only; on other OSes the package imports but window-touching calls
+  refuse to run.
+- A few test files were authored on a Windows host and still assume one
+  (hardcoded absolute paths, `ctypes.windll` at import time), so the **Ubuntu CI
+  leg is currently red** while the Windows leg passes — platform guards are the
+  top item in `RETROSPECT_BACKLOG.json`.
 
 ## License
 

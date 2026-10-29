@@ -5,9 +5,13 @@ __version__ = "0.5.1"
 from .backends import CompositeBackend, CuaDriverBackend, DryRunBackend, FunctionBackend
 from .capture import CaptureResult, capture_window_offscreen
 from .cloudpc import (
+    call_cua_driver_tool,
     capture_cloudpc_offscreen,
     cloudpc_status,
     enqueue_cloudpc_a2a,
+    find_cloudpc_session_window,
+    peek_cloudpc_screen,
+    resolve_cua_driver_path,
     route_cloudpc_window_action,
 )
 from .layout import InputSnapshot, PARKING_SLOTS, UserInputGuard, park_window_noactivate, sample_input_state
