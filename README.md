@@ -160,8 +160,9 @@ SetForegroundWindow；UserInputGuard 校验前台与光标零位移；人类编�
 
 Battle-tested in daily multi-agent desktop operation — the trajectory log holds
 2,200+ recorded actions all-time; the most recent 200-action window ran at
-**92.9% success, ~9 ms average latency, 0 focus-contention flags**
-(regenerate anytime with `acf retrospect`). 102 unit tests, zero deps.
+**93.0% success, ~8.9 ms average latency, 0 slow actions, 0 focus-contention
+flags** (`RETROSPECT_BACKLOG.json`, regenerate with `acf retrospect`). 102 unit
+tests, zero deps.
 Windows-first: UIA/Win32 backends need Windows; other modules are pure stdlib
 and cross-platform. CI runs the suite on Ubuntu + Windows (see Known limitations).
 
