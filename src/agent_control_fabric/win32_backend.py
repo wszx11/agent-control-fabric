@@ -26,10 +26,12 @@ if IS_WINDOWS:
     import ctypes.wintypes as wt
     user32: Any = ctypes.WinDLL("user32", use_last_error=True)
     gdi32: Any = ctypes.WinDLL("gdi32", use_last_error=True)
+    kernel32: Any = ctypes.WinDLL("kernel32", use_last_error=True)
 else:
     wt = None  # type: ignore[assignment]
     user32 = None
     gdi32 = None
+    kernel32 = None
 
 
 def ensure_dpi_aware() -> None:
@@ -76,6 +78,11 @@ if IS_WINDOWS:
         ctypes.POINTER(ctypes.c_size_t),
     )
     user32.SendMessageTimeoutW.restype = wt.LPARAM
+    kernel32.OpenProcess.restype = wt.HANDLE
+    kernel32.OpenProcess.argtypes = (wt.DWORD, wt.BOOL, wt.DWORD)
+    kernel32.QueryFullProcessImageNameW.argtypes = (
+        wt.HANDLE, wt.DWORD, wt.LPWSTR, ctypes.POINTER(wt.DWORD))
+    kernel32.CloseHandle.argtypes = (wt.HANDLE,)
 else:
     WNDENUMPROC = None
 
@@ -142,16 +149,20 @@ class WindowInfo:
 import re as _re
 _USER_DOC_PAT = _re.compile(
     r"\*\s*[^\r\n]*\.(txt|md|docx?|xlsx?|pptx?|csv|log|json|py|ps1|bat|ini|cfg)\s*[-—]\s*", _re.I)
-_INTERACTIVE_APPS = ("notepad", "word", "excel", "powerpnt", "wps", "notepad\+\+")
+# "notepad" substring already covers "notepad++" — a separate entry is redundant.
+_INTERACTIVE_APPS = ("notepad", "word", "excel", "powerpnt", "wps")
 
 def is_user_document_window(title: str, process_name: str = "") -> bool:
-    """True if the window looks like a human-edited document (typed keys would corrupt it)."""
-    if not title:
-        return False
-    if _USER_DOC_PAT.search(title):
+    """True if the window looks like a human-edited document (typed keys would corrupt it).
+
+    Empty titles no longer short-circuit the check: the owning process name alone
+    (e.g. a Chinese-localized Notepad window titled '无标题 - 记事本') is enough to block.
+    """
+    if _USER_DOC_PAT.search(title or ""):
         return True
+    tl = (title or "").lower()
     pl = (process_name or "").lower()
-    return any(a in pl or a in title.lower() for a in _INTERACTIVE_APPS if a != "notepad\+\+" or True)
+    return any(a in pl or a in tl for a in _INTERACTIVE_APPS)
 
 
 class Win32Backend:
@@ -227,6 +238,25 @@ class Win32Backend:
         buf = ctypes.create_unicode_buffer(80)
         user32.GetClassNameW(hwnd, buf, 80)
         return buf.value
+
+    @staticmethod
+    def _window_process_name(hwnd: int) -> str:
+        """Owning process exe base name (e.g. 'notepad.exe') — pure ctypes, zero deps."""
+        pid = wt.DWORD(0)
+        if not user32.GetWindowThreadProcessId(hwnd, ctypes.byref(pid)) or not pid.value:
+            return ""
+        PROCESS_QUERY_LIMITED_INFORMATION = 0x1000
+        h = kernel32.OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, False, int(pid.value))
+        if not h:
+            return ""
+        try:
+            buf = ctypes.create_unicode_buffer(1024)
+            size = wt.DWORD(1024)
+            if kernel32.QueryFullProcessImageNameW(h, 0, buf, ctypes.byref(size)):
+                return buf.value.rsplit("\\", 1)[-1].rsplit("/", 1)[-1]
+            return ""
+        finally:
+            kernel32.CloseHandle(h)
 
     @staticmethod
     def _restore_if_iconic_focus_safe(hwnd: int) -> bool:
@@ -314,7 +344,7 @@ class Win32Backend:
 
         if kind in ("press", "type", "click", "double_click", "right_click"):
             title = self._window_title(hwnd)
-            if is_user_document_window(title):
+            if is_user_document_window(title, self._window_process_name(hwnd)):
                 return BackendResult(
                     status="blocked",
                     action_id=action.action_id,
