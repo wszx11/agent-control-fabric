@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import os
 import shutil
 import tempfile
 import time
@@ -18,20 +17,13 @@ from agent_control_fabric.router import ActionRouter
 from agent_control_fabric.todesk import prepare_sanitized_bundle
 from agent_control_fabric.win32_backend import Win32Backend
 
+try:
+    from ._isolation import IsolatedLockDirMixin
+except ImportError:  # direct script execution
+    from _isolation import IsolatedLockDirMixin
 
-class TestLocksV02(unittest.TestCase):
-    def setUp(self):
-        self.tmp = tempfile.mkdtemp(prefix="acf_test_locks_")
-        self.old_env = os.environ.get("ACF_LOCK_DIR")
-        os.environ["ACF_LOCK_DIR"] = self.tmp
 
-    def tearDown(self):
-        if self.old_env is not None:
-            os.environ["ACF_LOCK_DIR"] = self.old_env
-        else:
-            os.environ.pop("ACF_LOCK_DIR", None)
-        shutil.rmtree(self.tmp, ignore_errors=True)
-
+class TestLocksV02(IsolatedLockDirMixin, unittest.TestCase):
     def test_acquire_and_release(self):
         lock = ResourceLock("test:res1", agent="agentA", ttl=10.0)
         self.assertTrue(lock.acquire(timeout=1.0))
@@ -171,19 +163,7 @@ class TestToDeskSanitizedStaging(unittest.TestCase):
             self.assertNotIn("antigravity_rt_export.password.txt", names)
 
 
-class TestRetrospectEngine(unittest.TestCase):
-    def setUp(self):
-        self.tmp = tempfile.mkdtemp(prefix="acf_test_retro_")
-        self.old_env = os.environ.get("ACF_LOCK_DIR")
-        os.environ["ACF_LOCK_DIR"] = self.tmp
-
-    def tearDown(self):
-        if self.old_env is not None:
-            os.environ["ACF_LOCK_DIR"] = self.old_env
-        else:
-            os.environ.pop("ACF_LOCK_DIR", None)
-        shutil.rmtree(self.tmp, ignore_errors=True)
-
+class TestRetrospectEngine(IsolatedLockDirMixin, unittest.TestCase):
     def test_router_records_trajectory_and_retrospect_diagnoses(self):
         router = ActionRouter(DryRunBackend())
         act_ok = Action(

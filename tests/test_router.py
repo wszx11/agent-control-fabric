@@ -10,6 +10,11 @@ from concurrent.futures import ThreadPoolExecutor
 
 from agent_control_fabric import Action, ActionRouter, DryRunBackend, Target
 
+try:
+    from ._isolation import IsolatedLockDirMixin
+except ImportError:  # direct script execution
+    from _isolation import IsolatedLockDirMixin
+
 
 def _act(action_id: str, window_id: int = 1, kind: str = "wait") -> Action:
     return Action(
@@ -23,7 +28,7 @@ def _act(action_id: str, window_id: int = 1, kind: str = "wait") -> Action:
     )
 
 
-class ActionRouterTests(unittest.TestCase):
+class ActionRouterTests(IsolatedLockDirMixin, unittest.TestCase):
     def test_execute_dispatches_to_backend(self):
         router = ActionRouter(DryRunBackend())
         result = router.execute(_act("r-1"))

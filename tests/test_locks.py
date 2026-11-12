@@ -2,16 +2,17 @@
 """Tests for agent_control_fabric.locks — cross-process ResourceLock semantics."""
 from __future__ import annotations
 
-import tempfile
 import unittest
-from pathlib import Path
 
 from agent_control_fabric.locks import ResourceLock
 
+try:
+    from ._isolation import IsolatedLockDirMixin
+except ImportError:  # direct script execution
+    from _isolation import IsolatedLockDirMixin
 
-class ResourceLockTests(unittest.TestCase):
-    def setUp(self):
-        self.tmp = tempfile.mkdtemp(prefix="acf_locks_")
+
+class ResourceLockTests(IsolatedLockDirMixin, unittest.TestCase):
 
     def test_acquire_release_roundtrip(self):
         import uuid

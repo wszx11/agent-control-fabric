@@ -18,7 +18,7 @@ from .layout import InputSnapshot, PARKING_SLOTS, UserInputGuard, park_window_no
 from .locks import ResourceLock, active_keys, peek
 from .models import Action, ActionValidationError, BackendResult, Target
 from .normalize import DslAdapter, SemanticAdapter, CoordinateAdapter, normalize_action
-from .retrospect import RetrospectReport, record_trajectory, run_retrospect
+from .retrospect import RetrospectReport, is_test_record, record_trajectory, run_retrospect
 from .router import ActionRouter
 from .todesk import copy_files_to_clipboard, get_todesk_telemetry, prepare_sanitized_bundle
 from .uia_backend import UIABackend, observe_window_uia
@@ -68,6 +68,7 @@ __all__ = [
     "peek",
     "prepare_sanitized_bundle",
     "record_trajectory",
+    "is_test_record",
     "route_cloudpc_window_action",
     "run_retrospect",
     "sample_input_state",

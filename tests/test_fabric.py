@@ -16,6 +16,11 @@ from agent_control_fabric import (
 )
 from agent_control_fabric.backends import CuaDriverBackend
 
+try:
+    from ._isolation import IsolatedLockDirMixin
+except ImportError:  # direct script execution
+    from _isolation import IsolatedLockDirMixin
+
 
 class RecordingBackend:
     name = "recording"
@@ -96,7 +101,7 @@ class CanonicalProtocolTests(unittest.TestCase):
             )
 
 
-class RoutingTests(unittest.TestCase):
+class RoutingTests(IsolatedLockDirMixin, unittest.TestCase):
     def make_action(self, action_id, target):
         return normalize_action(
             "test",
@@ -162,7 +167,7 @@ class RoutingTests(unittest.TestCase):
         self.assertTrue(result.ok)
 
 
-class BoundaryTests(unittest.TestCase):
+class BoundaryTests(IsolatedLockDirMixin, unittest.TestCase):
     def test_background_unavailable_is_blocked_without_retry(self):
         backend = BackgroundRefusingDriver()
         action = normalize_action(

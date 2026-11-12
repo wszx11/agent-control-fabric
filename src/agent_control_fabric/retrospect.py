@@ -26,6 +26,43 @@ def trajectory_path() -> Path:
     return Path(lock_dir()) / "trajectories.jsonl"
 
 
+# ---------------------------------------------------------------------------
+# Test-fixture filtering
+#
+# Unit tests and dry-run examples historically wrote records into the same
+# trajectory log as production runs. Those records are identifiable by their
+# agent_id / source values. `run_retrospect` excludes them by default so the
+# reported action counts and success rates reflect real business traffic
+# only. Both sets are plain module-level constants so a deployment can extend
+# the classification without touching the analysis logic.
+# ---------------------------------------------------------------------------
+
+TEST_AGENT_IDS = frozenset({
+    "router-test",                      # tests/test_router.py
+    "a", "b",                           # tests/test_fabric.py routing tests
+    "t",                                # tests/test_retrospect.py record test
+    "agent-A", "agent-B",               # legacy dogfood fixtures
+    "agent-baseline",                   # legacy dogfood fixture
+    "test-agent",                       # legacy unit fixture
+    "agent-unknown",                    # normalize() default when caller omits agent_id
+})
+
+TEST_SOURCES = frozenset({
+    "unit",                             # explicit unit-test marker
+})
+
+
+def is_test_record(rec: Dict[str, Any]) -> bool:
+    """Return True if a trajectory record was produced by tests/fixtures.
+
+    Classification is agent_id-first: real business callers (acf duty cron,
+    hm-desk-02 desktop ops, cloudpc routes) always set a concrete agent_id,
+    while test fixtures use the well-known ids above. `source` is a secondary
+    signal for records explicitly tagged as unit-test traffic.
+    """
+    return rec.get("agent_id") in TEST_AGENT_IDS or rec.get("source") in TEST_SOURCES
+
+
 def record_trajectory(
     action: Action,
     result: BackendResult,
@@ -74,6 +111,8 @@ class RetrospectReport:
     max_latency_ms: float
     slow_actions_count: int
     lock_takeovers: int
+    excluded_test_records: int = 0
+    real_records_analyzed: int = 0
     failure_codes: Dict[str, int] = field(default_factory=dict)
     findings: List[str] = field(default_factory=list)
     next_iterations: List[str] = field(default_factory=list)
@@ -82,16 +121,31 @@ class RetrospectReport:
         return asdict(self)
 
 
-def run_retrospect(limit: int = 200, slow_threshold_ms: float = 500.0) -> RetrospectReport:
-    """Analyze recent action trajectories and lock events to generate a retrospect."""
+def run_retrospect(
+    limit: int = 200,
+    slow_threshold_ms: float = 500.0,
+    include_test_records: bool = False,
+) -> RetrospectReport:
+    """Analyze recent action trajectories and lock events to generate a retrospect.
+
+    Test-fixture records (well-known unit-test agent ids / sources) are
+    excluded by default so the metrics reflect real business traffic only.
+    Pass ``include_test_records=True`` to analyze the raw window, which the
+    tests themselves use to verify the filtering logic.
+    """
     t_path = trajectory_path()
     records: List[Dict[str, Any]] = []
+    excluded = 0
     if t_path.exists():
         try:
             lines = t_path.read_text(encoding="utf-8", errors="replace").splitlines()
             for line in lines[-max(1, limit):]:
                 if line.strip():
-                    records.append(json.loads(line))
+                    rec = json.loads(line)
+                    if not include_test_records and is_test_record(rec):
+                        excluded += 1
+                    else:
+                        records.append(rec)
         except Exception:
             pass
 
@@ -124,8 +178,16 @@ def run_retrospect(limit: int = 200, slow_threshold_ms: float = 500.0) -> Retros
     next_iterations: List[str] = []
 
     if total == 0:
-        findings.append("尚无轨迹记录（trajectories.jsonl 为空），需通过实战任务产出真实操控轨迹。")
-        next_iterations.append("将本机高频窗口操控任务（如 ToDesk 传输、弹窗清理）统一接入 ActionRouter 产生轨迹。")
+        if excluded > 0:
+            findings.append(
+                f"分析窗口内无真实业务轨迹（已排除 {excluded} 条测试夹具记录），无业务成功率结论可给出。"
+            )
+            next_iterations.append(
+                "检查测试是否将 ACF_LOCK_DIR 指向了生产 _locks 目录；真实业务动作需通过正式 agent_id/source 接入 ActionRouter 后再复盘。"
+            )
+        else:
+            findings.append("尚无轨迹记录（trajectories.jsonl 为空），需通过实战任务产出真实操控轨迹。")
+            next_iterations.append("将本机高频窗口操控任务（如 ToDesk 传输、弹窗清理）统一接入 ActionRouter 产生轨迹。")
     else:
         rate = round(succeeded / total, 4)
         if codes.get("target_unavailable", 0) > 0:
@@ -150,8 +212,10 @@ def run_retrospect(limit: int = 200, slow_threshold_ms: float = 500.0) -> Retros
             findings.append(f"锁审计发现 {takeovers} 次死锁/超时抢占（takeover），存在中途异常退出的持锁进程。")
             next_iterations.append("缩短短动作的锁 TTL 并确保所有异常分支在 finally 中释放 ResourceLock。")
         if not findings:
-            findings.append(f"最近 {total} 步操控全部健康（成功率 {rate*100:.1f}%，平均耗时 {avg_lat}ms，零焦点争抢）。")
+            findings.append(f"最近 {total} 步真实操控全部健康（成功率 {rate*100:.1f}%，平均耗时 {avg_lat}ms，零焦点争抢）。")
             next_iterations.append("扩展下一批本机高频操控场景（如常用软件后台状态回读与无感操作模板）。")
+        if excluded > 0:
+            findings.append(f"统计口径说明：本窗口已排除 {excluded} 条测试夹具记录，以上指标仅基于 {total} 条真实业务轨迹。")
 
     return RetrospectReport(
         generated_at=time.time(),
@@ -160,11 +224,13 @@ def run_retrospect(limit: int = 200, slow_threshold_ms: float = 500.0) -> Retros
         succeeded=succeeded,
         failed=failed,
         blocked=blocked,
-        success_rate=round(succeeded / total, 4) if total else 1.0,
+        success_rate=round(succeeded / total, 4) if total else (1.0 if excluded == 0 else 0.0),
         avg_latency_ms=avg_lat,
         max_latency_ms=max_lat,
         slow_actions_count=slow_count,
         lock_takeovers=takeovers,
+        excluded_test_records=excluded,
+        real_records_analyzed=total,
         failure_codes=dict(codes),
         findings=findings,
         next_iterations=next_iterations,
