@@ -9,6 +9,7 @@ from collections.abc import Callable
 from typing import Any, Protocol
 
 from .models import Action, BackendResult
+from .policy import check_foreground_allowed
 from .win32_backend import Win32Backend
 
 
@@ -125,14 +126,15 @@ class CuaDriverBackend:
                 backend=self.name,
                 details={"code": "target_not_supported", "message": "Cua requires a window target"},
             )
-        if action.delivery_mode == "foreground" and not self.allow_foreground:
+        fg_allowed, fg_reason = check_foreground_allowed(action, allow_foreground=self.allow_foreground)
+        if not fg_allowed:
             return BackendResult(
                 status="blocked",
                 action_id=action.action_id,
                 backend=self.name,
                 details={
                     "code": "foreground_not_allowed",
-                    "message": "foreground execution requires explicit backend configuration",
+                    "message": fg_reason,
                 },
             )
         if action.kind == "wait":

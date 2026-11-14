@@ -1,4 +1,4 @@
-"""Command-line entry point for agent-control-fabric (v0.5.1)."""
+"""Command-line entry point for agent-control-fabric (v0.5.2)."""
 
 from __future__ import annotations
 
@@ -16,6 +16,7 @@ from .layout import PARKING_SLOTS, park_window_noactivate
 from .locks import active_keys, peek
 from .models import Action, Target
 from .normalize import normalize_action
+from .policy import is_no_foreground_enforced
 from .retrospect import run_retrospect
 from .router import ActionRouter
 from .todesk import copy_files_to_clipboard, get_todesk_telemetry, prepare_sanitized_bundle
@@ -42,7 +43,7 @@ def _result_json(result: Any) -> dict[str, Any]:
 
 
 def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(prog="acf", description="Agent Control Fabric CLI (v0.5.1)")
+    parser = argparse.ArgumentParser(prog="acf", description="Agent Control Fabric CLI (v0.5.2)")
     sub = parser.add_subparsers(dest="command", required=True)
 
     # normalize
@@ -69,6 +70,7 @@ def main(argv: list[str] | None = None) -> int:
     run_parser.add_argument("--dry-run", action="store_true", help="Alias for --backend dry-run")
     run_parser.add_argument("--driver", default="cua-driver", help="Cua Driver binary path")
     run_parser.add_argument("--allow-foreground", action="store_true", help="Allow foreground focus actions if explicitly required")
+    run_parser.add_argument("--no-foreground", action="store_true", help="Hard-block all foreground or window-raising actions (overrides --allow-foreground)")
     run_parser.add_argument("--cross-process-locks", action="store_true", help="Enforce cross-process file-level mutual exclusion locks")
     run_parser.add_argument("--max-workers", type=int, default=4)
 
@@ -204,25 +206,30 @@ def main(argv: list[str] | None = None) -> int:
         if args.command == "run":
             actions = _load_actions(args.path)
             backend_choice = "dry-run" if args.dry_run else args.backend
+            env_no_fg = is_no_foreground_enforced() is True
+            effective_no_fg = bool(args.no_foreground or env_no_fg or not args.allow_foreground)
+            effective_allow_fg = bool(args.allow_foreground and not args.no_foreground and not env_no_fg)
 
             if backend_choice == "dry-run":
                 backend = DryRunBackend()
             elif backend_choice == "uia":
-                backend = UIABackend()
+                backend = UIABackend(allow_foreground=effective_allow_fg)
             elif backend_choice == "win32":
-                backend = Win32Backend(allow_foreground=args.allow_foreground)
+                backend = Win32Backend(allow_foreground=effective_allow_fg)
             elif backend_choice == "cua-driver":
-                backend = CuaDriverBackend(executable=args.driver, allow_foreground=args.allow_foreground)
+                backend = CuaDriverBackend(executable=args.driver, allow_foreground=effective_allow_fg)
             else:  # composite: Semantic UIA -> Win32 PostMessage/SendMessage -> Cua Driver
-                win32_b = Win32Backend(allow_foreground=args.allow_foreground)
-                uia_b = UIABackend(win32_fallback=win32_b)
-                cua_b = CuaDriverBackend(executable=args.driver, allow_foreground=args.allow_foreground)
+                win32_b = Win32Backend(allow_foreground=effective_allow_fg)
+                uia_b = UIABackend(win32_fallback=win32_b, allow_foreground=effective_allow_fg)
+                cua_b = CuaDriverBackend(executable=args.driver, allow_foreground=effective_allow_fg)
                 backend = CompositeBackend([uia_b, win32_b, cua_b])
 
             router = ActionRouter(
                 backend,
                 max_workers=args.max_workers,
                 use_cross_process_locks=args.cross_process_locks,
+                no_foreground=effective_no_fg,
+                focus_guard=True,
             )
             results = router.execute_many(actions)
             print(json.dumps([_result_json(result) for result in results], ensure_ascii=False, indent=2))

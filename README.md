@@ -1,4 +1,4 @@
-# Agent Control Fabric (ACF) (v0.5.1)
+# Agent Control Fabric (ACF) (v0.5.2)
 
 **Agents drive the computer. Humans keep the mouse.**
 
@@ -107,7 +107,7 @@ through `ResourceLock` — see `examples/two-agents.json`, run with
 `acf run examples/two-agents.json --dry-run`.
 
 ```bash
-PYTHONPATH=src python -m unittest discover -s tests -v     # 115 tests, zero deps
+PYTHONPATH=src python -m unittest discover -s tests -v     # unit tests, zero deps
 PYTHONPATH=src python -m agent_control_fabric pc list-windows
 PYTHONPATH=src python -m agent_control_fabric cloudpc status
 PYTHONPATH=src python -m agent_control_fabric retrospect
@@ -122,6 +122,7 @@ PYTHONPATH=src python -m agent_control_fabric retrospect
 |---|---|
 | `acf normalize` | Normalize third-party actions (coordinate / DSL-string / semantic) into the canonical format |
 | `acf run FILE` | Execute a canonical action file against `uia` / `win32` / `cua-driver` / `composite` / `dry-run` backends |
+| `acf run FILE --no-foreground` | Hard-block every foreground / window-raising action (overrides `--allow-foreground`); setting `ACF_NO_FOREGROUND=1` enforces the same at environment level |
 | `acf locks list` / `acf locks peek KEY` | Inspect cross-process resource locks |
 | `acf pc list-windows` / `capture` / `park` / `uia-observe` | Focus-safe local window management: enumerate, offscreen-capture, park to screen strips, UIA tree inspect |
 | `acf cloudpc status` / `capture` / `enqueue` | Cloud PC dual-track: A2A command inbox + offscreen ToDesk screen capture |
@@ -133,7 +134,7 @@ PYTHONPATH=src python -m agent_control_fabric retrospect
 | Path | Contents |
 |---|---|
 | `src/agent_control_fabric/` | All runtime code: `models` / `normalize` / `router` / `backends` / `win32_backend` / `uia_backend` / `capture` / `layout` / `locks` / `virtual_desktop` / `todesk` / `cloudpc` / `retrospect` / `verification` / `cli` |
-| `tests/` | 115 unit tests, stdlib `unittest`, no fixtures outside the process |
+| `tests/` | Unit tests, stdlib `unittest`, no fixtures outside the process |
 | `examples/two-agents.json` | Minimal two-agent concurrent-run example (`acf run ... --dry-run`) |
 | `RETROSPECT_BACKLOG.json` | Live output of `acf retrospect` + the next-iteration backlog |
 | `THIRD_PARTY.md` | Third-party integration boundaries (no vendored upstream code) |
@@ -143,12 +144,27 @@ PYTHONPATH=src python -m agent_control_fabric retrospect
 **中文（安全模型）**: foreground 投递默认全后端拒绝；窗口恢复用 SW_SHOWNOACTIVATE，永不用
 SetForegroundWindow；UserInputGuard 校验前台与光标零位移；人类编辑中的文档窗口（Notepad/Word…）
 一律禁止注入按键与点击；虚拟桌面只切线程亲和，绝不切走人类的输入桌面。
+no-foreground 防抢前台是三层设计：`ACF_NO_FOREGROUND=1` 环境级硬熔断 →
+ActionRouter 默认 `no_foreground=True` 拦截 → 三后端 `check_foreground_allowed` 兜底；
+焦点漂移仅记录不激活退回（最小化漂移窗后 SW_SHOWNOACTIVATE 沉底还原），
+全程从不调用 SetForegroundWindow。
 
 - `delivery_mode="foreground"` is **rejected by default** in every backend
   (`foreground_not_allowed`); enabling it requires explicit backend configuration.
+- **No-foreground enforcement is layered**: setting `ACF_NO_FOREGROUND=1` is an
+  environment-level hard kill switch; `ActionRouter` defaults to
+  `no_foreground=True` and blocks foreground requests before dispatch
+  (`backend="router-no-foreground"`, `code="foreground_not_allowed"`); each
+  backend additionally re-checks via `check_foreground_allowed`, and
+  `acf run --no-foreground` overrides `--allow-foreground`.
 - Window restore uses `SW_SHOWNOACTIVATE` — **never** `SetForegroundWindow`.
 - `UserInputGuard` snapshots foreground window + cursor position and verifies
-  both unchanged after every guarded block.
+  both unchanged after every guarded block. If focus drifted while an action
+  ran, the guard only records it (`drifted` / `drifted_restored` /
+  `drifted_hwnd` in its summary); with `restore_foreground_on_drift=True` the
+  drifted window is minimized and re-shown with `SW_SHOWNOACTIVATE` at
+  `HWND_BOTTOM` — activation is yielded back without ever calling
+  `SetForegroundWindow`.
 - Sanitized bundle staging refuses `*password*`, `*.key*`, `*.pem`, `*.env`.
 - A2A mailbox ops are **deny-by-default** (`a2a_boundary.py`): only
   `branch_status_probe` is allowed, so a task asking for `run_script` is refused
@@ -162,7 +178,7 @@ Battle-tested in daily multi-agent desktop operation — the trajectory log hold
 ~870 recorded real business actions all-time (test fixtures are excluded from
 the analysis: the most recent window ran at **100% success over 68 real
 actions, ~9.4 ms average latency, 0 slow actions, 0 focus-contention flags**;
-`RETROSPECT_BACKLOG.json`, regenerate with `acf retrospect`). 115 unit tests,
+`RETROSPECT_BACKLOG.json`, regenerate with `acf retrospect`). Unit tests,
 zero deps.
 Windows-first: UIA/Win32 backends need Windows; other modules are pure stdlib
 and cross-platform. CI runs the suite on Ubuntu + Windows (see Known limitations).

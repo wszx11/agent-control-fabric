@@ -20,6 +20,7 @@ from dataclasses import dataclass
 from typing import Any, List, Optional
 
 from .models import Action, BackendResult
+from .policy import check_foreground_allowed
 
 IS_WINDOWS = os.name == "nt"
 if IS_WINDOWS:
@@ -300,14 +301,15 @@ class Win32Backend:
                 details={"code": "target_not_supported", "message": "Win32 backend requires window target"},
             )
 
-        if action.delivery_mode == "foreground" and not self.allow_foreground:
+        fg_allowed, fg_reason = check_foreground_allowed(action, allow_foreground=self.allow_foreground)
+        if not fg_allowed:
             return BackendResult(
                 status="blocked",
                 action_id=action.action_id,
                 backend=self.name,
                 details={
                     "code": "foreground_not_allowed",
-                    "message": "foreground delivery blocked by default to prevent desktop focus theft",
+                    "message": fg_reason,
                 },
             )
 

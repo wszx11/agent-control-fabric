@@ -1,6 +1,6 @@
-"""Public package surface for agent-control-fabric (v0.5.1)."""
+"""Public package surface for agent-control-fabric (v0.5.2)."""
 
-__version__ = "0.5.1"
+__version__ = "0.5.2"
 
 from .backends import CompositeBackend, CuaDriverBackend, DryRunBackend, FunctionBackend
 from .capture import CaptureResult, capture_window_offscreen
@@ -18,6 +18,7 @@ from .layout import InputSnapshot, PARKING_SLOTS, UserInputGuard, park_window_no
 from .locks import ResourceLock, active_keys, peek
 from .models import Action, ActionValidationError, BackendResult, Target
 from .normalize import DslAdapter, SemanticAdapter, CoordinateAdapter, normalize_action
+from .policy import NO_FOREGROUND_ENV, check_foreground_allowed, is_foreground_request, is_no_foreground_enforced
 from .retrospect import RetrospectReport, is_test_record, record_trajectory, run_retrospect
 from .router import ActionRouter
 from .todesk import copy_files_to_clipboard, get_todesk_telemetry, prepare_sanitized_bundle
@@ -31,6 +32,10 @@ __all__ = [
     "Action",
     "ActionRouter",
     "ActionValidationError",
+    "NO_FOREGROUND_ENV",
+    "check_foreground_allowed",
+    "is_foreground_request",
+    "is_no_foreground_enforced",
     "DslAdapter",
     "BackendResult",
     "CaptureResult",

@@ -71,7 +71,7 @@ def sample_input_state() -> InputSnapshot:
     lii = LASTINPUTINFO()
     lii.cbSize = ctypes.sizeof(LASTINPUTINFO)
     idle_ms = 0
-    if user32.GetLastInputInfo(ctypes.byref(lii)):
+    if kernel32 is not None and user32.GetLastInputInfo(ctypes.byref(lii)):
         now_tick = int(kernel32.GetTickCount())
         idle_ms = (now_tick - int(lii.dwTime)) & 0xFFFFFFFF
     return InputSnapshot(
@@ -89,6 +89,9 @@ class UserInputGuard:
         self.restore_foreground_on_drift = restore_foreground_on_drift
         self.before: InputSnapshot | None = None
         self.after: InputSnapshot | None = None
+        self.drifted: bool = False
+        self.drifted_restored: bool = False
+        self.drifted_hwnd: int = 0
 
     def __enter__(self) -> "UserInputGuard":
         self.before = sample_input_state()
@@ -99,33 +102,48 @@ class UserInputGuard:
         if (
             IS_WINDOWS
             and user32 is not None
-            and self.restore_foreground_on_drift
             and self.before
             and self.before.foreground_hwnd
             and self.after.foreground_hwnd
             and self.after.foreground_hwnd != self.before.foreground_hwnd
             and user32.IsWindow(self.after.foreground_hwnd)
         ):
-            # Yield activation back to the user's window without calling SetForegroundWindow:
-            # minimize the drifted background window briefly, then restore it with SW_SHOWNOACTIVATE(4) at HWND_BOTTOM.
-            drifted_hwnd = int(self.after.foreground_hwnd)
-            rc = wt.RECT()
-            user32.GetWindowRect(drifted_hwnd, ctypes.byref(rc))
-            w = max(300, int(rc.right - rc.left))
-            h = max(200, int(rc.bottom - rc.top))
-            user32.ShowWindow(drifted_hwnd, 6)  # SW_MINIMIZE
-            time.sleep(0.15)
-            user32.ShowWindow(drifted_hwnd, 4)  # SW_SHOWNOACTIVATE
-            user32.SetWindowPos(drifted_hwnd, HWND_BOTTOM, int(rc.left), int(rc.top), w, h, SWP_NOACTIVATE | SWP_SHOWWINDOW)
-            self.after = sample_input_state()
+            self.drifted = True
+            self.drifted_hwnd = int(self.after.foreground_hwnd)
+            if self.restore_foreground_on_drift:
+                # Yield activation back to the user's window without calling SetForegroundWindow:
+                # minimize the drifted background window briefly, then restore it with SW_SHOWNOACTIVATE(4) at HWND_BOTTOM.
+                drifted_hwnd = self.drifted_hwnd
+                rc = wt.RECT()
+                user32.GetWindowRect(drifted_hwnd, ctypes.byref(rc))
+                w = max(300, int(rc.right - rc.left))
+                h = max(200, int(rc.bottom - rc.top))
+                user32.ShowWindow(drifted_hwnd, 6)  # SW_MINIMIZE
+                time.sleep(0.15)
+                user32.ShowWindow(drifted_hwnd, 4)  # SW_SHOWNOACTIVATE
+                user32.SetWindowPos(drifted_hwnd, HWND_BOTTOM, int(rc.left), int(rc.top), w, h, SWP_NOACTIVATE | SWP_SHOWWINDOW)
+                self.drifted_restored = True
+                self.after = sample_input_state()
         return False
 
     def summary(self) -> dict[str, object]:
         if not self.before or not self.after:
-            return {"checked": False}
+            return {
+                "checked": False,
+                "focus_preserved": False,
+                "drifted": self.drifted,
+                "drifted_restored": self.drifted_restored,
+                "drifted_hwnd": self.drifted_hwnd,
+                "cursor_unchanged": False,
+                "before": asdict(self.before) if self.before else None,
+                "after": asdict(self.after) if self.after else None,
+            }
         return {
             "checked": True,
             "focus_preserved": self.before.foreground_hwnd == self.after.foreground_hwnd,
+            "drifted": self.drifted,
+            "drifted_restored": self.drifted_restored,
+            "drifted_hwnd": self.drifted_hwnd,
             "cursor_unchanged": (self.before.cursor_x, self.before.cursor_y)
             == (self.after.cursor_x, self.after.cursor_y),
             "before": asdict(self.before),
@@ -141,6 +159,8 @@ def park_window_noactivate(
     send_to_bottom: bool = True,
 ) -> dict[str, object]:
     """Reposition `hwnd` into a non-intrusive parking slot without activating it."""
+    if not IS_WINDOWS or user32 is None:
+        return {"ok": False, "hwnd": hwnd, "error": "Win32 user32 unavailable"}
     if not user32.IsWindow(hwnd):
         return {"ok": False, "hwnd": hwnd, "error": "invalid window handle"}
 

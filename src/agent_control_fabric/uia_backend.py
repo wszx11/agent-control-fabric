@@ -17,6 +17,7 @@ import ctypes
 from typing import Any, Dict, List, Optional
 
 from .models import Action, BackendResult, Target
+from .policy import check_foreground_allowed
 from .win32_backend import IS_WINDOWS, Win32Backend, ensure_dpi_aware, user32, wt
 
 ensure_dpi_aware()
@@ -91,9 +92,16 @@ class UIABackend:
 
     name = "uia"
 
-    def __init__(self, *, win32_fallback: Optional[Win32Backend] = None, max_depth: int = 18):
-        self.win32 = win32_fallback or Win32Backend()
+    def __init__(
+        self,
+        *,
+        win32_fallback: Optional[Win32Backend] = None,
+        max_depth: int = 18,
+        allow_foreground: bool = False,
+    ):
+        self.win32 = win32_fallback or Win32Backend(allow_foreground=allow_foreground)
         self.max_depth = max_depth
+        self.allow_foreground = allow_foreground
 
     def _find_control(
         self,
@@ -129,12 +137,13 @@ class UIABackend:
                 backend=self.name,
                 details={"code": "target_not_supported", "message": "UIABackend requires a window target"},
             )
-        if action.delivery_mode == "foreground":
+        fg_allowed, fg_reason = check_foreground_allowed(action, allow_foreground=self.allow_foreground)
+        if not fg_allowed:
             return BackendResult(
                 status="blocked",
                 action_id=action.action_id,
                 backend=self.name,
-                details={"code": "foreground_not_allowed", "message": "UIABackend is strictly background-only"},
+                details={"code": "foreground_not_allowed", "message": fg_reason},
             )
 
         selector = action.parameters.get("selector")

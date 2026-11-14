@@ -17,6 +17,7 @@ uv.lock
 run-artifacts/
 secrets/
 _locks/
+.wrangler/
 RETROSPECT_BACKLOG.json
 
 

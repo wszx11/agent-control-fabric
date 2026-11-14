@@ -8,8 +8,10 @@ from threading import Lock
 from typing import Any, Optional
 
 from .backends import Backend
+from .layout import UserInputGuard
 from .locks import ResourceLock
 from .models import Action, BackendResult
+from .policy import check_foreground_allowed, is_no_foreground_enforced
 from .retrospect import record_trajectory
 
 
@@ -24,12 +26,16 @@ class ActionRouter:
         max_workers: int = 4,
         use_cross_process_locks: bool = False,
         lock_ttl: float = 120.0,
+        no_foreground: bool = True,
+        focus_guard: bool = True,
     ):
         self.backend = backend
         self.verifier = verifier
         self.max_workers = max(1, int(max_workers))
         self.use_cross_process_locks = use_cross_process_locks
         self.lock_ttl = lock_ttl
+        self.no_foreground = bool(no_foreground)
+        self.focus_guard = bool(focus_guard)
         self._locks: dict[tuple[Any, ...], Lock] = {}
         self._locks_guard = Lock()
 
@@ -48,7 +54,37 @@ class ActionRouter:
 
     def _dispatch(self, action: Action) -> BackendResult:
         t0 = time.perf_counter()
-        result = self.backend.execute(action)
+        effective_no_fg = self.no_foreground or (is_no_foreground_enforced() is True)
+        allowed, reason = check_foreground_allowed(
+            action,
+            allow_foreground=not effective_no_fg,
+            no_foreground=effective_no_fg,
+        )
+        if not allowed:
+            elapsed_ms = (time.perf_counter() - t0) * 1000.0
+            result = BackendResult(
+                status="blocked",
+                action_id=action.action_id,
+                backend="router-no-foreground",
+                details={
+                    "code": "foreground_not_allowed",
+                    "message": reason,
+                    "no_foreground": True,
+                    "elapsed_ms": round(elapsed_ms, 2),
+                },
+            )
+            record_trajectory(action, result, elapsed_ms)
+            return result
+
+        use_guard = self.focus_guard and action.kind != "wait" and action.target.kind == "window"
+        guard = UserInputGuard(restore_foreground_on_drift=True) if use_guard else None
+        if guard is not None:
+            with guard:
+                result = self.backend.execute(action)
+        else:
+            result = self.backend.execute(action)
+        if guard is not None:
+            result.details["focus_guard"] = guard.summary()
         if result.status == "executed" and action.expected:
             if self.verifier is None:
                 result.details["verification"] = {
