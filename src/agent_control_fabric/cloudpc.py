@@ -31,7 +31,10 @@ from .win32_backend import Win32Backend
 
 CST = timezone(timedelta(hours=8))
 DEFAULT_A2A_DIR = Path(os.environ.get("ACF_A2A_DIR", str(Path.home() / ".acf" / "cloudpc_a2a")))
-DEFAULT_CUA_DRIVER = r"C:\Users\zx\AppData\Local\Programs\Cua\cua-driver\bin\cua-driver.EXE"
+DEFAULT_CUA_DRIVER = os.path.join(
+    os.environ.get("LOCALAPPDATA") or str(Path.home() / "AppData" / "Local"),
+    "Programs", "Cua", "cua-driver", "bin", "cua-driver.EXE",
+)
 FULLSCREEN_MIN_W = 800
 
 

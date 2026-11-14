@@ -65,6 +65,15 @@ class OffWindowsGuardTests(unittest.TestCase):
         ]
         self.assertEqual(offenders, [], f"hardcoded paths in: {offenders}")
 
+    def test_runtime_sources_have_no_personal_user_paths(self):
+        # Built at runtime so this file does not match itself.
+        needles = ["Users" + "\\" + "zx", "Users" + "/" + "zx", "ai " + "gongzuoqu", "zonzhang" + "-office"]
+        offenders = []
+        for path in (REPO / "src").rglob("*.py"):
+            text = path.read_text(encoding="utf-8", errors="replace")
+            offenders.extend(f"{path.name}:{n}" for n in needles if n.lower() in text.lower())
+        self.assertEqual(offenders, [], f"personal paths in runtime sources: {offenders}")
+
 
 if __name__ == "__main__":
     unittest.main()
